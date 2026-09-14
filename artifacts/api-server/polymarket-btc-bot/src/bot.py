@@ -12,6 +12,8 @@ The main loop runs once every `strategy.tick_interval_sec` seconds:
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import time
 from pathlib import Path
 from typing import List, Optional
@@ -41,8 +43,9 @@ class Orchestrator:
         self.tg = TelegramBot(cfg, self.risk, self.storage, self.engine, self)
 
         self.tracked_markets: List[MarketInfo] = []
-        self.paused: bool = False
+        self._pause_file = Path(cfg.storage.sqlite_path).with_name("control.json")
         self._pause_flag = Path(cfg.storage.sqlite_path).with_name("paused.flag")
+        self.paused: bool = self._read_pause_state()
         self._shutdown = asyncio.Event()
         self._market_refresh_ts: float = 0.0
         # Refresh markets every 5 minutes
@@ -71,17 +74,34 @@ class Orchestrator:
     def set_paused(self, paused: bool) -> None:
         self.paused = paused
         self._pause_flag.parent.mkdir(parents=True, exist_ok=True)
+        self._pause_file.parent.mkdir(parents=True, exist_ok=True)
         if paused:
             self._pause_flag.touch()
+            temporary_path = self._pause_file.with_suffix(".json.tmp")
+            temporary_path.write_text(
+                json.dumps({"paused": True}) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(temporary_path, self._pause_file)
         else:
             self._pause_flag.unlink(missing_ok=True)
+            self._pause_file.unlink(missing_ok=True)
         log.warning("strategy loop paused" if paused else "strategy loop resumed")
 
     def _sync_pause_state(self) -> None:
-        file_paused = self._pause_flag.exists()
+        file_paused = self._read_pause_state()
         if file_paused != self.paused:
             self.paused = file_paused
             log.warning("strategy loop paused" if self.paused else "strategy loop resumed")
+
+    def _read_pause_state(self) -> bool:
+        if self._pause_flag.exists():
+            return True
+        try:
+            raw = json.loads(self._pause_file.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return False
+        return raw.get("paused") is True
 
     # ----- main loop ------------------------------------------------
     async def _loop(self) -> None:
@@ -140,10 +160,13 @@ class Orchestrator:
         self.risk.mark_positions(marks)
 
         # 7. Execute (only meaningful actions)
+        # A pause can arrive while feeds/orderbooks are being refreshed. Check
+        # again immediately before execution so the emergency action blocks
+        # new orders without closing an already open position.
+        self._sync_pause_state()
+        if self.paused:
+            return
         if signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN, SignalAction.EXIT):
-            self._sync_pause_state()
-            if self.paused:
-                return
             event = await self.engine.execute(signal, market, up_book, down_book)
             if event and event.action in ("OPEN", "CLOSE"):
                 await self.tg.send(

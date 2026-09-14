@@ -40,9 +40,17 @@ paths:
                 $ref: "#/components/schemas/BotStatus"
   /bot/pause:
     post:
-      operationId: pauseBot
+      operationId: setBotPause
       tags: [bot]
-      summary: Pause the bot strategy loop
+      summary: Pause or resume the trading strategy
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotPauseRequest"
       responses:
         "200":
           description: Updated bot status
@@ -50,11 +58,17 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BotStatus"
+        "400":
+          description: Invalid pause action
+        "401":
+          description: Authentication required
   /bot/resume:
     post:
       operationId: resumeBot
       tags: [bot]
-      summary: Resume the bot strategy loop
+      summary: Resume the trading strategy
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Updated bot status
@@ -62,7 +76,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BotStatus"
+        "401":
+          description: Authentication required
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
   schemas:
     HealthStatus:
       type: object
@@ -101,4 +121,10 @@ components:
         - startedAt
         - exitCode
         - lastError
-
+    BotPauseRequest:
+      type: object
+      properties:
+        paused:
+          type: boolean
+      required:
+        - paused

@@ -1,5 +1,6 @@
 import {
   getGetBotStatusQueryKey,
+  setBotPause,
   useGetBotStatus,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
@@ -82,6 +83,8 @@ export default function HomeScreen() {
   const isRunning = status?.process === 'running';
   const isError = status?.process === 'error';
   const isPaused = status?.paused === true;
+  const isRealMode = status?.mode === 'real';
+  const controlUserId = process.env.EXPO_PUBLIC_TELEGRAM_USER_ID?.trim();
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const webBottomInset = Platform.OS === 'web' ? 34 : 0;
 
@@ -89,12 +92,13 @@ export default function HomeScreen() {
     async (action: 'pause' | 'resume') => {
       setControlPending(true);
       try {
-        const domain = process.env.EXPO_PUBLIC_DOMAIN;
-        const baseUrl = domain ? `https://${domain}` : '';
-        const response = await fetch(`${baseUrl}/api/bot/${action}`, { method: 'POST' });
-        if (!response.ok) {
-          throw new Error(`Control request failed: ${response.status}`);
+        if (!controlUserId) {
+          throw new Error('Control user is not configured');
         }
+        await setBotPause(
+          { paused: action === 'pause' },
+          { headers: { 'x-telegram-user-id': controlUserId } },
+        );
         await Haptics.notificationAsync(
           action === 'pause'
             ? Haptics.NotificationFeedbackType.Warning
@@ -110,10 +114,11 @@ export default function HomeScreen() {
         setControlPending(false);
       }
     },
-    [statusQuery],
+    [controlUserId, statusQuery],
   );
 
   const handleControlPress = useCallback(() => {
+    if (!isRealMode || !controlUserId) return;
     if (isPaused) {
       Alert.alert(
         'Возобновить real-режим?',
@@ -126,7 +131,7 @@ export default function HomeScreen() {
       return;
     }
     void sendControl('pause');
-  }, [isPaused, sendControl]);
+  }, [controlUserId, isPaused, isRealMode, sendControl]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -153,11 +158,17 @@ export default function HomeScreen() {
             <View
               style={[
                 styles.liveDot,
-                { backgroundColor: isRunning ? colors.primary : colors.mutedForeground },
+                {
+                  backgroundColor: isPaused
+                    ? colors.warning
+                    : isRunning
+                      ? colors.primary
+                      : colors.mutedForeground,
+                },
               ]}
             />
             <Text style={[styles.liveText, { color: colors.mutedForeground }]}>
-              {isRunning ? 'LIVE' : 'OFFLINE'}
+              {isPaused ? 'PAUSED' : isRunning ? 'LIVE' : 'OFFLINE'}
             </Text>
           </View>
         </View>
@@ -264,13 +275,20 @@ export default function HomeScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={isPaused ? 'Возобновить стратегию' : 'Поставить стратегию на паузу'}
-            disabled={controlPending || !isRunning}
+            disabled={controlPending || !isRunning || !isRealMode || !controlUserId}
             onPress={handleControlPress}
             style={({ pressed }) => [
               styles.controlButton,
               {
                 backgroundColor: isPaused ? colors.primary : colors.destructiveForeground,
-                opacity: pressed || controlPending || !isRunning ? 0.65 : 1,
+                opacity:
+                  pressed ||
+                  controlPending ||
+                  !isRunning ||
+                  !isRealMode ||
+                  !controlUserId
+                    ? 0.65
+                    : 1,
               },
             ]}
           >

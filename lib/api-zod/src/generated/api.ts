@@ -16,7 +16,6 @@ export const HealthCheckResponse = zod.object({
   "status": zod.string()
 })
 
-
 /**
  * @summary Get Telegram bot status
  */
@@ -32,3 +31,35 @@ export const GetBotStatusResponse = zod.object({
 })
 
 
+/**
+ * @summary Pause or resume the trading strategy
+ */
+export const SetBotPauseBody = zod.object({
+  "paused": zod.boolean()
+})
+
+export const SetBotPauseResponse = zod.object({
+  "name": zod.string(),
+  "process": zod.enum(['starting', 'running', 'stopped', 'error']),
+  "mode": zod.enum(['paper', 'real']),
+  "walletConfigured": zod.boolean(),
+  "paused": zod.boolean(),
+  "startedAt": zod.string().nullable(),
+  "exitCode": zod.number().int().nullable(),
+  "lastError": zod.string().nullable()
+})
+
+
+/**
+ * @summary Resume the trading strategy
+ */
+export const ResumeBotResponse = zod.object({
+  "name": zod.string(),
+  "process": zod.enum(['starting', 'running', 'stopped', 'error']),
+  "mode": zod.enum(['paper', 'real']),
+  "walletConfigured": zod.boolean(),
+  "paused": zod.boolean(),
+  "startedAt": zod.string().nullable(),
+  "exitCode": zod.number().int().nullable(),
+  "lastError": zod.string().nullable()
+})

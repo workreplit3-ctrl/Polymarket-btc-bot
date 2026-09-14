@@ -6,22 +6,27 @@
  * OpenAPI spec version: 0.1.0
  */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
+  BotPauseRequest,
   BotStatus,
   HealthStatus
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
-import type { ErrorType } from '../custom-fetch';
+import type { ErrorType , BodyType } from '../custom-fetch';
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -201,4 +206,166 @@ export function useGetBotStatus<TData = Awaited<ReturnType<typeof getBotStatus>>
 
 
 
+
+export const getSetBotPauseUrl = () => {
+
+
+
+
+  return `/api/bot/pause`
+}
+
+/**
+ * @summary Pause or resume the trading strategy
+ */
+export const setBotPause = async (botPauseRequest: BotPauseRequest, options?: Parameters<typeof customFetch>[1]): Promise<BotStatus> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<BotStatus>(getSetBotPauseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(botPauseRequest)
+  }
+);}
+
+
+
+
+
+export const getSetBotPauseMutationKey = () => ['setBotPause'] as const;
+
+export const getSetBotPauseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setBotPause>>, TError,SetBotPauseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setBotPause>>, TError,SetBotPauseMutationVariables, TContext> => {
+
+const mutationKey = getSetBotPauseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setBotPause>>, SetBotPauseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  setBotPause(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetBotPauseMutationResult = NonNullable<Awaited<ReturnType<typeof setBotPause>>>
+    export type SetBotPauseMutationBody = BodyType<BotPauseRequest>
+    export type SetBotPauseMutationError = ErrorType<void>
+    export type SetBotPauseMutationVariables = {data: BodyType<BotPauseRequest>}
+
+    /**
+ * @summary Pause or resume the trading strategy
+ */
+export const useSetBotPause = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setBotPause>>, TError,SetBotPauseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setBotPause>>,
+        TError,
+        SetBotPauseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSetBotPauseMutationOptions(options));
+    }
+
+export const getResumeBotUrl = () => {
+
+
+
+
+  return `/api/bot/resume`
+}
+
+/**
+ * @summary Resume the trading strategy
+ */
+export const resumeBot = async ( options?: Parameters<typeof customFetch>[1]): Promise<BotStatus> => {
+
+  return customFetch<BotStatus>(getResumeBotUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResumeBotMutationKey = () => ['resumeBot'] as const;
+
+export const getResumeBotMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeBot>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resumeBot>>, TError,void, TContext> => {
+
+const mutationKey = getResumeBotMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resumeBot>>, void> = () => {
+
+
+          return  resumeBot(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResumeBotMutationResult = NonNullable<Awaited<ReturnType<typeof resumeBot>>>
+
+    export type ResumeBotMutationError = ErrorType<void>
+
+
+    /**
+ * @summary Resume the trading strategy
+ */
+export const useResumeBot = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resumeBot>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resumeBot>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResumeBotMutationOptions(options));
+    }
 

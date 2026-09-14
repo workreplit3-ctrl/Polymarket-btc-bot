@@ -41,3 +41,6 @@ export interface BotStatus {
   lastError: string | null;
 }
 
+export interface BotPauseRequest {
+  paused: boolean;
+}

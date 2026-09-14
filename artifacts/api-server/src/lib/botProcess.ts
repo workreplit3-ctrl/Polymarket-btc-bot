@@ -1,5 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { logger } from "./logger";
@@ -11,6 +18,11 @@ let state: BotState = "stopped";
 let lastError: string | null = null;
 let startedAt: string | null = null;
 let exitCode: number | null = null;
+
+function controlFilePath(): string {
+  return path.resolve(process.cwd(), "polymarket-btc-bot", "data", "control.json");
+}
+
 const pauseFlag = path.resolve(process.cwd(), "polymarket-btc-bot", "data", "paused.flag");
 
 function attachOutput(stream: NodeJS.ReadableStream, level: "info" | "error") {
@@ -85,11 +97,17 @@ export function stopBotProcess(): void {
 }
 
 export function setBotPaused(paused: boolean): void {
-  mkdirSync(path.dirname(pauseFlag), { recursive: true });
+  const filePath = controlFilePath();
+  mkdirSync(path.dirname(filePath), { recursive: true });
   if (paused) {
+    const temporaryPath = `${filePath}.tmp`;
+    writeFileSync(temporaryPath, `${JSON.stringify({ paused: true })}\n`, "utf8");
+    renameSync(temporaryPath, filePath);
+    mkdirSync(path.dirname(pauseFlag), { recursive: true });
     writeFileSync(pauseFlag, "paused\n", "utf8");
-  } else if (existsSync(pauseFlag)) {
-    unlinkSync(pauseFlag);
+  } else {
+    if (existsSync(filePath)) unlinkSync(filePath);
+    if (existsSync(pauseFlag)) unlinkSync(pauseFlag);
   }
 }
 
@@ -98,12 +116,24 @@ export function getBotStatus() {
     name: "10",
     process: state,
     mode: process.env.POLYMARKET_MODE ?? "paper",
+    paused: readPausedState(),
     walletConfigured: Boolean(
       process.env.POLYMARKET_PRIVATE_KEY && process.env.POLYMARKET_FUNDER_ADDRESS,
     ),
-    paused: existsSync(pauseFlag),
     startedAt,
     exitCode,
     lastError,
   };
+}
+
+function readPausedState(): boolean {
+  if (existsSync(pauseFlag)) return true;
+  try {
+    const raw = JSON.parse(readFileSync(controlFilePath(), "utf8")) as {
+      paused?: unknown;
+    };
+    return raw.paused === true;
+  } catch {
+    return false;
+  }
 }

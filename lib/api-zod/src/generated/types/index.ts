@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './botPauseRequest';
 export * from './botStatus';
 export * from './botStatusMode';
 export * from './botStatusProcess';
