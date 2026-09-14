@@ -209,7 +209,10 @@ class PolymarketClient:
         if self._clob_signer is None:
             try:
                 # Lazy import — allows paper mode without the dependency
-                from py_clob_client_v2 import ClobClient  # type: ignore
+                from py_clob_client_v2 import (  # type: ignore
+                    ClobClient,
+                    SignatureTypeV2,
+                )
             except ImportError as e:
                 raise RuntimeError(
                     "Real-mode trading requires py-clob-client-v2: "
@@ -224,7 +227,10 @@ class PolymarketClient:
                 host=self.cfg.clob_host,
                 key=w.private_key,
                 chain_id=self.cfg.chain_id,
-                signature_type=1,  # POLY_PROXY (Polymarket uses proxy wallets)
+                # Current Polymarket accounts use the deposit-wallet flow.
+                # The configured funder must be the deposit wallet shown by
+                # Polymarket, not the signer EOA.
+                signature_type=SignatureTypeV2.POLY_1271,
                 funder=w.funder,
             )
             # Derive API creds if needed
