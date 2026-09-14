@@ -20,10 +20,10 @@ from src.logger import get_logger, setup_logging
 
 
 def build_config():
-    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    token = os.environ.get("TELEGRAM_BOT_TOKEN_10", "").strip()
     raw_user_ids = os.environ.get("TELEGRAM_USER_ID", "").strip()
     if not token:
-        raise ConfigError("TELEGRAM_BOT_TOKEN is not configured")
+        raise ConfigError("TELEGRAM_BOT_TOKEN_10 is not configured")
     if not raw_user_ids:
         raise ConfigError("TELEGRAM_USER_ID is not configured")
 
