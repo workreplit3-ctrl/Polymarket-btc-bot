@@ -236,16 +236,22 @@ class PolymarketClient:
                 log.warning(f"could not derive API creds: {e}")
             self._clob_signer = client
 
+        from py_clob_client.clob_types import OrderArgs  # type: ignore
         from py_clob_client.order_builder.constants import BUY, SELL  # type: ignore
         side_const = BUY if side.upper() == "BUY" else SELL
+
+        order_args = OrderArgs(
+            token_id=token_id,
+            price=price,
+            size=size,
+            side=side_const,
+        )
 
         # Run the blocking CLOB client call in a thread
         loop = asyncio.get_running_loop()
         order = await loop.run_in_executor(
             None,
-            lambda: self._clob_signer.create_and_post_order(
-                token_id, price=price, size=size, side=side_const
-            ),
+            lambda: self._clob_signer.create_and_post_order(order_args),
         )
         log.info(f"order placed: token={token_id[:8]}… side={side} price={price} size={size}")
         return order if isinstance(order, dict) else {"raw": str(order)}
