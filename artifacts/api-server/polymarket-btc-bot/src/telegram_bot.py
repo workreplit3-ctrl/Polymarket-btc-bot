@@ -136,7 +136,7 @@ class TelegramBot:
             try:
                 await asyncio.sleep(self.cfg.telegram.heartbeat_interval_sec)
                 snap = self.risk.snapshot()
-                btc = self.engine._feed.consensus() if hasattr(self.engine, "_feed") else None
+                btc = self.orch.feed.consensus()
                 btc_str = f"${btc.mid:,.2f}" if btc and btc.mid > 0 else "n/a"
                 msg = (
                     f"💓 heartbeat\n"

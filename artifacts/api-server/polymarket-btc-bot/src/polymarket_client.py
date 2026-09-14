@@ -204,17 +204,16 @@ class PolymarketClient:
         price: float,          # 0..1, in Polymarket probability units
         size: float,           # number of shares
     ) -> Dict[str, Any]:
-        """Place a real signed order. Requires py-clob-client installed and
+        """Place a real signed order. Requires py-clob-client-v2 installed and
         wallet configured. Returns the order receipt."""
         if self._clob_signer is None:
             try:
                 # Lazy import — allows paper mode without the dependency
-                from py_clob_client.client import ClobClient  # type: ignore
-                from py_clob_client.clob_types import ApiCreds  # type: ignore
+                from py_clob_client_v2 import ClobClient  # type: ignore
             except ImportError as e:
                 raise RuntimeError(
-                    "Real-mode trading requires py-clob-client: "
-                    "pip install py-clob-client"
+                    "Real-mode trading requires py-clob-client-v2: "
+                    "install py-clob-client-v2"
                 ) from e
 
             w = self.cfg.wallet
@@ -230,15 +229,18 @@ class PolymarketClient:
             )
             # Derive API creds if needed
             try:
-                creds = client.create_or_derive_api_creds()
+                creds = client.create_or_derive_api_key()
                 client.set_api_creds(creds)
             except Exception as e:
                 log.warning(f"could not derive API creds: {e}")
             self._clob_signer = client
 
-        from py_clob_client.clob_types import OrderArgs  # type: ignore
-        from py_clob_client.order_builder.constants import BUY, SELL  # type: ignore
-        side_const = BUY if side.upper() == "BUY" else SELL
+        from py_clob_client_v2 import (  # type: ignore
+            OrderArgs,
+            OrderType,
+            Side,
+        )
+        side_const = Side.BUY if side.upper() == "BUY" else Side.SELL
 
         order_args = OrderArgs(
             token_id=token_id,
@@ -251,7 +253,10 @@ class PolymarketClient:
         loop = asyncio.get_running_loop()
         order = await loop.run_in_executor(
             None,
-            lambda: self._clob_signer.create_and_post_order(order_args),
+            lambda: self._clob_signer.create_and_post_order(
+                order_args,
+                order_type=OrderType.GTC,
+            ),
         )
         log.info(f"order placed: token={token_id[:8]}… side={side} price={price} size={size}")
         return order if isinstance(order, dict) else {"raw": str(order)}

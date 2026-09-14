@@ -627,6 +627,23 @@ wheels = [
 ]
 
 [[package]]
+name = "py-clob-client-v2"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-utils" },
+    { name = "httpx", extra = ["http2"] },
+    { name = "poly-eip712-structs" },
+    { name = "py-order-utils" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/c9/a4d6f78aeb1b961f728815f54a22c4cb355e9608635b692f3215afea1776/py_clob_client_v2-1.1.0.tar.gz", hash = "sha256:7821e2f3ced3651da0956a1225e89ec94434736a8e16086c1c6a14351774088d", size = 49113, upload-time = "2026-07-17T13:00:51.072Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/7a/2d7d1c3e224fec8787de23c21311540e21fbadd4138e5ce0bea5d427e390/py_clob_client_v2-1.1.0-py3-none-any.whl", hash = "sha256:421dc851ffad5028850dc332a7388863fe854f125b30bf3aa9d3333fb8cd1eeb", size = 50416, upload-time = "2026-07-17T13:00:49.696Z" },
+]
+
+[[package]]
 name = "py-ecc"
 version = "8.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -933,6 +950,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "httpx" },
     { name = "py-clob-client" },
+    { name = "py-clob-client-v2" },
     { name = "python-telegram-bot" },
     { name = "pyyaml" },
     { name = "websockets" },
@@ -942,6 +960,7 @@ dependencies = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "py-clob-client", specifier = ">=0.20.0" },
+    { name = "py-clob-client-v2", specifier = ">=1.1.0" },
     { name = "python-telegram-bot", specifier = ">=21.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "websockets", specifier = ">=12.0" },
