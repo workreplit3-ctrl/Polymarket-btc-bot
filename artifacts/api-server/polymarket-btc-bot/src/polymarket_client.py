@@ -81,9 +81,39 @@ class PolymarketClient:
 
     # ----- Gamma: market discovery ----------------------------------
     async def list_active_btc_updown_markets(self, slug_prefix: str) -> List[MarketInfo]:
-        """Fetch active markets whose slug starts with slug_prefix."""
+        """Fetch active BTC markets, preferring the current short-duration slugs.
+
+        Gamma's ordered active list may contain pre-created markets for the
+        following day before the current market. The direct slug lookup keeps
+        discovery aligned with the current 5m/15m windows.
+        """
         out: List[MarketInfo] = []
         seen: set[str] = set()
+
+        now = int(time.time())
+        for interval_sec in (300,):
+            current_slot = (now // interval_sec) * interval_sec
+            for slot in (current_slot - interval_sec, current_slot, current_slot + interval_sec):
+                slug = f"{slug_prefix}-{interval_sec // 60}m-{slot}"
+                if slug in seen:
+                    continue
+                seen.add(slug)
+                try:
+                    r = await self._http.get(f"{self.cfg.gamma_host}/markets/slug/{slug}")
+                    if r.status_code == 404:
+                        continue
+                    r.raise_for_status()
+                    info = self._parse_market(r.json())
+                    if info is not None:
+                        out.append(info)
+                except Exception as e:
+                    log.debug(f"direct market lookup failed for {slug}: {e}")
+
+        # Direct lookup is authoritative for the short-duration strategy. Do
+        # not add future markets from the broad list when current slugs exist.
+        if out:
+            log.info(f"found {len(out)} active BTC up/down markets via direct slugs")
+            return out
 
         # Ordering by createdAt puts the current crypto series on the first
         # page. Keep a small offset fallback for older Gamma deployments.
@@ -161,6 +191,20 @@ class PolymarketClient:
             if str(lbl).lower() in ("down", "no"):
                 down_idx = i
 
+        volume_values = [
+            float(m.get(key) or 0.0)
+            for key in ("volume", "volumeNum", "volume24hr", "volumeClob")
+        ]
+        liquidity_values = [
+            float(m.get(key) or 0.0)
+            for key in ("liquidityNum", "liquidityClob", "liquidity")
+        ]
+        # Fresh short-duration markets can have very little matched volume
+        # while already having a deep order book. Use the larger activity /
+        # liquidity value as the market eligibility proxy; the risk manager
+        # still checks the actual best ask depth and slippage before ordering.
+        market_activity = max(volume_values + liquidity_values + [0.0])
+
         return MarketInfo(
             condition_id=m.get("conditionId") or m.get("condition_id") or "",
             question=m.get("question", ""),
@@ -169,13 +213,7 @@ class PolymarketClient:
             outcome_up_token_id=tokens[up_idx],
             outcome_down_token_id=tokens[down_idx],
             outcomes=outcomes,
-            volume=float(
-                m.get("volume")
-                or m.get("volumeNum")
-                or m.get("liquidityNum")
-                or m.get("liquidity")
-                or 0.0
-            ),
+            volume=market_activity,
             active=bool(m.get("active", True)),
         )
 
@@ -257,23 +295,80 @@ class PolymarketClient:
 
         # Run the blocking CLOB client call in a thread
         loop = asyncio.get_running_loop()
+        # FOK prevents a real order from sitting live after this call returns.
+        # The engine records a position only after the CLOB confirms a match.
         order = await loop.run_in_executor(
             None,
             lambda: self._clob_signer.create_and_post_order(
                 order_args,
-                order_type=OrderType.GTC,
+                order_type=OrderType.FOK,
             ),
         )
-        log.info(f"order placed: token={token_id[:8]}… side={side} price={price} size={size}")
-        return order if isinstance(order, dict) else {"raw": str(order)}
+        receipt = order if isinstance(order, dict) else {"raw": str(order)}
+        order_id = str(receipt.get("orderID") or receipt.get("id") or "")
+
+        if not self._order_is_filled(receipt, size):
+            # Some responses omit the final status while the CLOB is resolving
+            # transaction hashes. Query the order before treating it as failed.
+            for _ in range(3):
+                if not order_id:
+                    break
+                await asyncio.sleep(0.25)
+                try:
+                    detail = await loop.run_in_executor(
+                        None, lambda: self._clob_signer.get_order(order_id)
+                    )
+                except Exception as e:
+                    log.warning(f"could not confirm order {order_id[:10]}…: {e}")
+                    continue
+                if isinstance(detail, dict):
+                    receipt = {**receipt, **detail}
+                    if self._order_is_filled(receipt, size):
+                        break
+
+        if not self._order_is_filled(receipt, size):
+            if order_id:
+                await self.cancel_order(order_id)
+            status = receipt.get("status", "unknown")
+            raise RuntimeError(
+                f"order was not confirmed filled (status={status}, order_id={order_id or 'none'})"
+            )
+
+        log.info(
+            f"order filled: token={token_id[:8]}… side={side} "
+            f"price={price} size={size}"
+        )
+        return receipt
+
+    @staticmethod
+    def _order_is_filled(order: Dict[str, Any], requested_size: float) -> bool:
+        """Return true only for a fully matched order, never just accepted/live."""
+        status = str(order.get("status") or "").strip().lower()
+        matched_status = status in {"matched", "filled", "executed", "complete", "completed"}
+        saw_match_amount = False
+        for key in ("size_matched", "sizeMatched", "filled_size", "filledSize"):
+            value = order.get(key)
+            if value is None:
+                continue
+            saw_match_amount = True
+            try:
+                return float(value) >= requested_size * 0.999
+            except (TypeError, ValueError):
+                continue
+        # Some FOK responses include only a terminal matched status. Accept
+        # that form, but never let an explicit partial amount pass through.
+        return matched_status and not saw_match_amount
 
     async def cancel_order(self, order_id: str) -> bool:
         if self._clob_signer is None:
             return False
         loop = asyncio.get_running_loop()
         try:
+            cancel = getattr(self._clob_signer, "cancel_order", None)
+            if cancel is None:
+                cancel = getattr(self._clob_signer, "cancel")
             await loop.run_in_executor(
-                None, lambda: self._clob_signer.cancel(order_id)
+                None, lambda: cancel(order_id)
             )
             return True
         except Exception as e:

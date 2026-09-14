@@ -3,8 +3,8 @@ name: Polymarket market discovery
 description: Non-obvious Gamma API behavior relevant to BTC up/down market discovery.
 ---
 
-The Gamma `/markets` endpoint can return older BTC up/down markets even when `active=true` and `closed=false`. Current crypto markets are reliably found by ordering by `createdAt` descending; current responses may expose `liquidityNum` instead of `volume`.
+The Gamma `/markets` endpoint can return pre-created BTC up/down markets for the following day even when `active=true` and `closed=false`. Direct lookup of the current rounded 5m slug is more reliable; responses may expose high liquidity with very low matched volume.
 
-**Why:** Filtering the default first page produced no tradable markets because the returned BTC series had already expired timestamps despite being marked active.
+**Why:** The ordered active list can surface future markets before the current one, while a fresh current market may have little matched volume but a deep order book.
 
-**How to apply:** Keep market discovery newest-first, reject markets whose parsed end time is stale, and use liquidity fields only as a fallback when volume is absent.
+**How to apply:** Prefer direct current 5m slug discovery, enforce a narrow resolution-time window, reject future/long-horizon markets, and use liquidity as the eligibility proxy when it is stronger than matched volume.

@@ -65,7 +65,9 @@ polymarket:
   market_filter:
     slug_prefix: "btc-updown"
     # Only consider markets with at least this many minutes until resolution
-    min_minutes_to_resolution: 5
+    min_minutes_to_resolution: 1
+    # Reject future/long-horizon markets; this strategy is for the current 5m window
+    max_minutes_to_resolution: 10
     # Skip markets with less than this much 24h volume (USD)
     min_volume_usd: 1000
 

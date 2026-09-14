@@ -108,7 +108,9 @@ class DivergenceStrategy:
         # --- market implied probability --------------------------------
         up_mid = up_book.mid()
         down_mid = down_book.mid()
-        if up_mid is None or down_mid is None:
+        up_ask = up_book.best_ask()
+        down_ask = down_book.best_ask()
+        if up_mid is None or down_mid is None or up_ask is None or down_ask is None:
             return Signal(
                 action=SignalAction.HOLD,
                 btc_price=consensus.mid,
@@ -124,6 +126,10 @@ class DivergenceStrategy:
         market_prob_up = up_mid
         edge = our_prob_up - market_prob_up
         abs_edge = abs(edge)
+        # A new position pays the ask, not the midpoint. Use actionable edge
+        # for entries so the bid/ask spread cannot look like alpha.
+        buy_edge_up = our_prob_up - up_ask.price
+        buy_edge_down = (1.0 - our_prob_up) - down_ask.price
 
         # --- volatility filter ----------------------------------------
         vol = self.feed.volatility_60s()
@@ -176,20 +182,28 @@ class DivergenceStrategy:
                           reason="holding DOWN", ts=now)
 
         # --- entry logic (flat) ---------------------------------------
-        if abs_edge >= self.cfg.entry_edge_pct:
-            if edge > 0:
+        if max(buy_edge_up, buy_edge_down) >= self.cfg.entry_edge_pct:
+            if buy_edge_up >= buy_edge_down:
                 # Our prob of Up is higher than market → buy Up
                 return Signal(action=SignalAction.OPEN_UP, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
-                              market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
-                              reason=f"edge +{abs_edge:.4f} → buy UP", ts=now)
+                              market_prob_up=market_prob_up, edge=buy_edge_up,
+                              abs_edge=buy_edge_up,
+                              reason=f"buy edge +{buy_edge_up:.4f} after ask → buy UP",
+                              ts=now)
             else:
                 return Signal(action=SignalAction.OPEN_DOWN, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
-                              market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
-                              reason=f"edge -{abs_edge:.4f} → buy DOWN", ts=now)
+                              market_prob_up=market_prob_up, edge=-buy_edge_down,
+                              abs_edge=buy_edge_down,
+                              reason=f"buy edge +{buy_edge_down:.4f} after ask → buy DOWN",
+                              ts=now)
 
         return Signal(action=SignalAction.HOLD, btc_price=consensus.mid,
                       btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                       market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
-                      reason=f"no edge ({abs_edge:.4f} < {self.cfg.entry_edge_pct})", ts=now)
+                      reason=(
+                          f"no actionable edge "
+                          f"(UP={buy_edge_up:.4f}, DOWN={buy_edge_down:.4f}, "
+                          f"threshold={self.cfg.entry_edge_pct})"
+                      ), ts=now)

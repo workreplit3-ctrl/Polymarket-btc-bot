@@ -86,6 +86,7 @@ class WalletCfg:
 class MarketFilterCfg:
     slug_prefix: str
     min_minutes_to_resolution: int
+    max_minutes_to_resolution: int
     min_volume_usd: float
 
 
@@ -183,7 +184,8 @@ def _build(raw: Dict[str, Any]) -> Config:
         wallet=wallet,
         market_filter=MarketFilterCfg(
             slug_prefix=mf.get("slug_prefix", "bitcoin-up-or-down"),
-            min_minutes_to_resolution=int(mf.get("min_minutes_to_resolution", 5)),
+            min_minutes_to_resolution=int(mf.get("min_minutes_to_resolution", 1)),
+            max_minutes_to_resolution=int(mf.get("max_minutes_to_resolution", 10)),
             min_volume_usd=float(mf.get("min_volume_usd", 1000)),
         ),
     )
@@ -271,7 +273,8 @@ def empty_paper_config() -> Config:
             "wallet": {"private_key": None, "funder": None},
             "market_filter": {
                 "slug_prefix": "bitcoin-up-or-down",
-                "min_minutes_to_resolution": 5,
+                "min_minutes_to_resolution": 1,
+                "max_minutes_to_resolution": 10,
                 "min_volume_usd": 1000,
             },
         },

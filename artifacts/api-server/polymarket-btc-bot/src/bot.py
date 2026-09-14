@@ -162,24 +162,41 @@ class Orchestrator:
         except Exception as e:
             log.warning(f"market refresh failed: {e}")
             return
-        # Filter by min minutes to resolution and min volume
+        # Filter by the intended resolution window and minimum volume. Gamma can
+        # expose future BTC markets as active, so the upper bound is mandatory:
+        # this strategy is calibrated for the current short-duration window.
         keep: List[MarketInfo] = []
+        skipped_too_early = 0
+        skipped_too_late = 0
+        skipped_volume = 0
+        skipped_invalid_time = 0
         for m in markets:
             try:
                 end_ts = _parse_iso_ts(m.end_date)
                 if end_ts is None:
+                    skipped_invalid_time += 1
                     continue
                 mins_left = (end_ts - time.time()) / 60.0
                 if mins_left < self.cfg.polymarket.market_filter.min_minutes_to_resolution:
+                    skipped_too_early += 1
+                    continue
+                if mins_left > self.cfg.polymarket.market_filter.max_minutes_to_resolution:
+                    skipped_too_late += 1
                     continue
                 if m.volume < self.cfg.polymarket.market_filter.min_volume_usd:
+                    skipped_volume += 1
                     continue
                 keep.append(m)
             except Exception:
+                skipped_invalid_time += 1
                 continue
         keep.sort(key=lambda x: _parse_iso_ts(x.end_date) or float("inf"))
         self.tracked_markets = keep
-        log.info(f"tracking {len(keep)} markets; nearest end={keep[0].end_date if keep else '-'}")
+        log.info(
+            f"tracking {len(keep)} markets; nearest end={keep[0].end_date if keep else '-'} "
+            f"(skipped too_early={skipped_too_early}, too_late={skipped_too_late}, "
+            f"low_volume={skipped_volume}, invalid_time={skipped_invalid_time})"
+        )
 
     def _pick_market(self) -> Optional[MarketInfo]:
         if not self.tracked_markets:
