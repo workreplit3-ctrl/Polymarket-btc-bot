@@ -4,8 +4,9 @@ import {
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
+  Alert,
   ActivityIndicator,
   Platform,
   Pressable,
@@ -70,6 +71,7 @@ export default function HomeScreen() {
       refetchInterval: 15_000,
     },
   });
+  const [controlPending, setControlPending] = useState(false);
 
   const refresh = useCallback(async () => {
     await Haptics.selectionAsync();
@@ -79,8 +81,52 @@ export default function HomeScreen() {
   const status = statusQuery.data;
   const isRunning = status?.process === 'running';
   const isError = status?.process === 'error';
+  const isPaused = status?.paused === true;
   const webTopInset = Platform.OS === 'web' ? 67 : 0;
   const webBottomInset = Platform.OS === 'web' ? 34 : 0;
+
+  const sendControl = useCallback(
+    async (action: 'pause' | 'resume') => {
+      setControlPending(true);
+      try {
+        const domain = process.env.EXPO_PUBLIC_DOMAIN;
+        const baseUrl = domain ? `https://${domain}` : '';
+        const response = await fetch(`${baseUrl}/api/bot/${action}`, { method: 'POST' });
+        if (!response.ok) {
+          throw new Error(`Control request failed: ${response.status}`);
+        }
+        await Haptics.notificationAsync(
+          action === 'pause'
+            ? Haptics.NotificationFeedbackType.Warning
+            : Haptics.NotificationFeedbackType.Success,
+        );
+        await statusQuery.refetch();
+      } catch {
+        Alert.alert(
+          'Не удалось изменить состояние',
+          'Сервер не подтвердил действие. Обновите статус и попробуйте ещё раз.',
+        );
+      } finally {
+        setControlPending(false);
+      }
+    },
+    [statusQuery],
+  );
+
+  const handleControlPress = useCallback(() => {
+    if (isPaused) {
+      Alert.alert(
+        'Возобновить real-режим?',
+        'После возобновления стратегия снова сможет создавать новые ордера.',
+        [
+          { text: 'Отмена', style: 'cancel' },
+          { text: 'Возобновить', onPress: () => void sendControl('resume') },
+        ],
+      );
+      return;
+    }
+    void sendControl('pause');
+  }, [isPaused, sendControl]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -153,9 +199,11 @@ export default function HomeScreen() {
               <Text style={[styles.statusDescription, { color: colors.mutedForeground }]}>
                 {statusQuery.isError
                   ? 'Сервер пока не отвечает. Потяните экран вниз для повторной проверки.'
-                  : status?.walletConfigured
-                    ? 'Кошелёк подключён. Реальные сделки доступны после включения режима.'
-                    : 'Кошелёк не подключён. Бот работает в безопасном режиме paper.'}
+                  : status?.paused
+                    ? 'Стратегия на паузе. Открытые позиции не закрываются автоматически.'
+                    : status?.walletConfigured
+                      ? 'Кошелёк подключён. Real-режим может отправлять реальные ордера.'
+                      : 'Кошелёк не подключён. Бот работает в безопасном режиме paper.'}
               </Text>
             </View>
           </View>
@@ -174,6 +222,76 @@ export default function HomeScreen() {
             value={status?.walletConfigured ? 'Connected' : 'Not set'}
             tone={status?.walletConfigured ? 'green' : 'muted'}
           />
+        </View>
+
+        <View
+          style={[
+            styles.controlCard,
+            {
+              backgroundColor: isPaused ? colors.card : colors.destructive,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View style={styles.controlCopy}>
+            <Text
+              style={[
+                styles.controlEyebrow,
+                { color: isPaused ? colors.warning : colors.destructiveForeground },
+              ]}
+            >
+              {isPaused ? 'СТРАТЕГИЯ НА ПАУЗЕ' : 'REAL CONTROL'}
+            </Text>
+            <Text
+              style={[
+                styles.controlTitle,
+                { color: isPaused ? colors.foreground : colors.destructiveForeground },
+              ]}
+            >
+              {isPaused ? 'Ордера остановлены' : 'Аварийная пауза'}
+            </Text>
+            <Text
+              style={[
+                styles.controlDescription,
+                { color: isPaused ? colors.mutedForeground : colors.destructiveForeground },
+              ]}
+            >
+              {isPaused
+                ? 'Возобновление снова разрешит новые ордера.'
+                : 'Остановить новые ордера без закрытия открытых позиций.'}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isPaused ? 'Возобновить стратегию' : 'Поставить стратегию на паузу'}
+            disabled={controlPending || !isRunning}
+            onPress={handleControlPress}
+            style={({ pressed }) => [
+              styles.controlButton,
+              {
+                backgroundColor: isPaused ? colors.primary : colors.destructiveForeground,
+                opacity: pressed || controlPending || !isRunning ? 0.65 : 1,
+              },
+            ]}
+          >
+            {controlPending ? (
+              <ActivityIndicator color={isPaused ? colors.primaryForeground : colors.destructive} />
+            ) : (
+              <Feather
+                name={isPaused ? 'play' : 'pause'}
+                size={17}
+                color={isPaused ? colors.primaryForeground : colors.destructive}
+              />
+            )}
+            <Text
+              style={[
+                styles.controlButtonText,
+                { color: isPaused ? colors.primaryForeground : colors.destructive },
+              ]}
+            >
+              {isPaused ? 'Resume' : 'Pause'}
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.sectionHeading}>
@@ -281,5 +399,12 @@ const styles = StyleSheet.create({
   commandDescription: { flex: 1, fontSize: 12 },
   refreshButton: { minHeight: 52, borderRadius: 17, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 9 },
   refreshText: { fontSize: 14, fontWeight: '700' },
+  controlCard: { borderWidth: 1, borderRadius: 20, padding: 16, gap: 14 },
+  controlCopy: { gap: 4 },
+  controlEyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
+  controlTitle: { fontSize: 17, fontWeight: '700' },
+  controlDescription: { fontSize: 12, lineHeight: 17 },
+  controlButton: { minHeight: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  controlButtonText: { fontSize: 13, fontWeight: '800' },
   footerNote: { fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: 10 },
 });

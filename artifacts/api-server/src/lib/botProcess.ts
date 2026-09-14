@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { logger } from "./logger";
@@ -11,6 +11,7 @@ let state: BotState = "stopped";
 let lastError: string | null = null;
 let startedAt: string | null = null;
 let exitCode: number | null = null;
+const pauseFlag = path.resolve(process.cwd(), "polymarket-btc-bot", "data", "paused.flag");
 
 function attachOutput(stream: NodeJS.ReadableStream, level: "info" | "error") {
   const lines = readline.createInterface({ input: stream });
@@ -83,6 +84,15 @@ export function stopBotProcess(): void {
   child = undefined;
 }
 
+export function setBotPaused(paused: boolean): void {
+  mkdirSync(path.dirname(pauseFlag), { recursive: true });
+  if (paused) {
+    writeFileSync(pauseFlag, "paused\n", "utf8");
+  } else if (existsSync(pauseFlag)) {
+    unlinkSync(pauseFlag);
+  }
+}
+
 export function getBotStatus() {
   return {
     name: "10",
@@ -91,6 +101,7 @@ export function getBotStatus() {
     walletConfigured: Boolean(
       process.env.POLYMARKET_PRIVATE_KEY && process.env.POLYMARKET_FUNDER_ADDRESS,
     ),
+    paused: existsSync(pauseFlag),
     startedAt,
     exitCode,
     lastError,

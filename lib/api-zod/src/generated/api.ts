@@ -25,6 +25,7 @@ export const GetBotStatusResponse = zod.object({
   "process": zod.enum(['starting', 'running', 'stopped', 'error']),
   "mode": zod.enum(['paper', 'real']),
   "walletConfigured": zod.boolean(),
+  "paused": zod.boolean(),
   "startedAt": zod.string().nullable(),
   "exitCode": zod.number().int().nullable(),
   "lastError": zod.string().nullable()

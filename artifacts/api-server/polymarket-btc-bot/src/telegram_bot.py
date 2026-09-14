@@ -219,13 +219,13 @@ class TelegramBot:
     async def _cmd_pause(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._authorized(update):
             await self._reject(update); return
-        self.orch.paused = True
+        self.orch.set_paused(True)
         await update.effective_message.reply_text("⏸ strategy loop paused")
 
     async def _cmd_resume(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._authorized(update):
             await self._reject(update); return
-        self.orch.paused = False
+        self.orch.set_paused(False)
         await update.effective_message.reply_text("▶ strategy loop resumed")
 
     async def _cmd_positions(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:

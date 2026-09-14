@@ -32,6 +32,7 @@ export interface BotStatus {
   process: BotStatusProcess;
   mode: BotStatusMode;
   walletConfigured: boolean;
+  paused: boolean;
   /** @nullable */
   startedAt: string | null;
   /** @nullable */

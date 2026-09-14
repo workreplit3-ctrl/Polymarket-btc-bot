@@ -1,1 +1,2 @@
 - [Polymarket market discovery](polymarket-market-discovery.md) — current BTC markets require newest-first Gamma ordering and liquidity fallback.
+- [Telegram polling exclusivity](telegram-polling-exclusivity.md) — one bot token can have only one long-polling instance at a time.

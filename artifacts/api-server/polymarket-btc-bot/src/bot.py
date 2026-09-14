@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 from typing import List, Optional
 
 from .btc_feed import BtcPriceAggregator
@@ -41,6 +42,7 @@ class Orchestrator:
 
         self.tracked_markets: List[MarketInfo] = []
         self.paused: bool = False
+        self._pause_flag = Path(cfg.storage.sqlite_path).with_name("paused.flag")
         self._shutdown = asyncio.Event()
         self._market_refresh_ts: float = 0.0
         # Refresh markets every 5 minutes
@@ -49,6 +51,7 @@ class Orchestrator:
     # ----- lifecycle ------------------------------------------------
     async def run(self) -> None:
         log.info(f"orchestrator starting in {self.cfg.mode} mode")
+        self._sync_pause_state()
         await self.feed.start()
         await self.tg.start()
         await self.tg.send(f"🤖 bot started in *{self.cfg.mode}* mode")
@@ -65,10 +68,26 @@ class Orchestrator:
         # No special action needed; engine reads self.cfg.mode at each call.
         # In real mode, the first order will lazy-build the CLOB signer.
 
+    def set_paused(self, paused: bool) -> None:
+        self.paused = paused
+        self._pause_flag.parent.mkdir(parents=True, exist_ok=True)
+        if paused:
+            self._pause_flag.touch()
+        else:
+            self._pause_flag.unlink(missing_ok=True)
+        log.warning("strategy loop paused" if paused else "strategy loop resumed")
+
+    def _sync_pause_state(self) -> None:
+        file_paused = self._pause_flag.exists()
+        if file_paused != self.paused:
+            self.paused = file_paused
+            log.warning("strategy loop paused" if self.paused else "strategy loop resumed")
+
     # ----- main loop ------------------------------------------------
     async def _loop(self) -> None:
         while not self._shutdown.is_set():
             try:
+                self._sync_pause_state()
                 if not self.paused:
                     await self._tick()
                 # Always log equity + signal summary even when paused
@@ -122,6 +141,9 @@ class Orchestrator:
 
         # 7. Execute (only meaningful actions)
         if signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN, SignalAction.EXIT):
+            self._sync_pause_state()
+            if self.paused:
+                return
             event = await self.engine.execute(signal, market, up_book, down_book)
             if event and event.action in ("OPEN", "CLOSE"):
                 await self.tg.send(

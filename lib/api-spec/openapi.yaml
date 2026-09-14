@@ -38,6 +38,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BotStatus"
+  /bot/pause:
+    post:
+      operationId: pauseBot
+      tags: [bot]
+      summary: Pause the bot strategy loop
+      responses:
+        "200":
+          description: Updated bot status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
+  /bot/resume:
+    post:
+      operationId: resumeBot
+      tags: [bot]
+      summary: Resume the bot strategy loop
+      responses:
+        "200":
+          description: Updated bot status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
 components:
   schemas:
     HealthStatus:
@@ -60,6 +84,8 @@ components:
           enum: [paper, real]
         walletConfigured:
           type: boolean
+        paused:
+          type: boolean
         startedAt:
           type: [string, "null"]
         exitCode:
@@ -71,6 +97,7 @@ components:
         - process
         - mode
         - walletConfigured
+        - paused
         - startedAt
         - exitCode
         - lastError
