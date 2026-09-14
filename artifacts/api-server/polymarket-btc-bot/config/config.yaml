@@ -1,0 +1,130 @@
+# ====================================================================
+# Polymarket BTC Up/Down Bot — Configuration
+# --------------------------------------------------------------------
+# Copy this file to `config.yaml` and fill in real values.
+# NEVER commit your real config.yaml or your private key.
+# ====================================================================
+
+# --- Telegram -------------------------------------------------------
+telegram:
+  bot_token: "PUT_YOUR_BOT_TOKEN_HERE"
+  # Comma-separated list of numeric Telegram user IDs allowed to control the bot.
+  # Use /whoami in any chat with @userinfobot to find yours.
+  allowed_user_ids: [123456789]
+  # Send a heartbeat every N seconds even if nothing happened (0 = off)
+  heartbeat_interval_sec: 1800
+
+# --- Mode -----------------------------------------------------------
+# "paper"  : simulate trades, no real orders, no wallet needed
+# "real"   : place real orders via Polymarket CLOB API (needs wallet+USDC)
+# Switchable at runtime via Telegram (/mode paper|real)
+mode: paper
+
+# --- BTC price feed -------------------------------------------------
+# Both feeds run in parallel; a consensus mid is computed.
+# If one feed dies, the other is used alone.
+btc_feeds:
+  binance:
+    enabled: true
+    # Binance combined stream: bookTicker gives best bid/ask
+    ws_url: "wss://stream.binance.com:9443/ws/btcusdt@bookTicker"
+    # Reconnect backoff
+    reconnect_min_sec: 1
+    reconnect_max_sec: 30
+  coinbase:
+    enabled: true
+    # Coinbase Advanced Trade WS (heartbeats + ticker channel)
+    ws_url: "wss://advanced-trade-ws.coinbase.com/ticker"
+    product_id: "BTC-USD"
+    reconnect_min_sec: 1
+    reconnect_max_sec: 30
+  # If the spread between Binance and Coinbase mid exceeds this %,
+  # mark the consensus as "stale" and pause new entries.
+  cross_feed_max_divergence_pct: 0.15
+
+# --- Polymarket -----------------------------------------------------
+polymarket:
+  # Network: polygon mainnet
+  chain_id: 137
+  # CLOB API host
+  clob_host: "https://clob.polymarket.com"
+  # GraphQL/REST host for market metadata
+  gamma_host: "https://gamma-api.polymarket.com"
+  # Optional: proxy URL if running from a region where Polymarket is geo-blocked.
+  # Leave null if not needed.
+  http_proxy: null
+
+  # Real-mode wallet (LEAVE NULL in paper mode)
+  wallet:
+    private_key: null   # 0x... NEVER share, NEVER commit
+    funder: null         # Your Polymarket proxy wallet address (the one holding USDC)
+
+  # Which BTC Up/Down market series to track.
+  # Polymarket runs recurring hourly "Bitcoin Up or Down" markets.
+  # slug_prefix is matched against active markets.
+  market_filter:
+    slug_prefix: "btc-updown"
+    # Only consider markets with at least this many minutes until resolution
+    min_minutes_to_resolution: 5
+    # Skip markets with less than this much 24h volume (USD)
+    min_volume_usd: 1000
+
+# --- Strategy -------------------------------------------------------
+strategy:
+  # How often to re-evaluate the signal (seconds)
+  tick_interval_sec: 5
+
+  # Reference window for BTC price drift: compare current price to price
+  # N seconds ago, then derive an "implied" market probability from drift.
+  reference_window_sec: 300   # 5 minutes
+
+  # Map BTC drift to an implied probability that "Up" wins, using a logistic
+  # function:  P(Up) = 1 / (1 + exp(-k * drift_pct))
+  drift_to_prob_k: 8.0
+
+  # Entry threshold: open a position when |implied_prob - market_prob| >= this
+  # "Balanced" preset.
+  entry_edge_pct: 0.06        # 6 percentage points
+  # Exit threshold: close when edge collapses below this
+  exit_edge_pct: 0.015        # 1.5 percentage points
+  # Hard stop on edge against us
+  adverse_edge_stop_pct: 0.10
+
+  # Side preference: when the edge is exactly equal on both sides, prefer "YES Up".
+  prefer_side: "UP"
+
+  # If BTC volatility (rolling stdev of returns over 60s) exceeds this,
+  # refuse new entries (market is too choppy).
+  max_volatility_60s: 0.0040  # 0.4% per minute stdev
+
+# --- Risk control ---------------------------------------------------
+# You said you'll tune these yourself — these are sane conservative defaults.
+risk:
+  # Max simultaneously open positions
+  max_open_positions: 3
+  # Per-trade size in USDC (paper or real)
+  per_trade_size_usdc: 10.0
+  # Hard daily loss limit in USDC; bot halts after hitting it
+  daily_loss_limit_usdc: 30.0
+  # Max total exposure in USDC across all open positions
+  max_total_exposure_usdc: 50.0
+  # Cooldown after a losing trade (seconds)
+  loss_cooldown_sec: 600
+  # Cooldown after any exit (seconds) — prevents thrash
+  post_trade_cooldown_sec: 60
+  # Slippage budget: refuse to place orders whose expected fill is worse than
+  # mid + this many cents (Polymarket prices are 0..1, so 0.02 = 2 cents).
+  max_slippage_cents: 0.02
+
+# --- Storage --------------------------------------------------------
+storage:
+  # SQLite file for trades, equity curve, signals
+  sqlite_path: "data/bot.db"
+  # Rotate logs after this many days
+  log_retention_days: 30
+
+# --- Logging --------------------------------------------------------
+logging:
+  level: "INFO"   # DEBUG | INFO | WARNING | ERROR
+  file: "logs/bot.log"
+  json: false

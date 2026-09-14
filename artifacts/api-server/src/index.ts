@@ -1,4 +1,5 @@
 import app from "./app";
+import { startBotProcess, stopBotProcess } from "./lib/botProcess";
 import { logger } from "./lib/logger";
 
 const rawPort = process.env["PORT"];
@@ -15,6 +16,8 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+startBotProcess();
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -23,3 +26,12 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 });
+
+function shutdown(signal: string) {
+  logger.info({ signal }, "Shutting down API server");
+  stopBotProcess();
+  process.exit(0);
+}
+
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));

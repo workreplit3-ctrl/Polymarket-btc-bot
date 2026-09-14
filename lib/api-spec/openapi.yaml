@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: bot
+    description: Telegram bot status
 paths:
   /healthz:
     get:
@@ -24,6 +26,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /bot/status:
+    get:
+      operationId: getBotStatus
+      tags: [bot]
+      summary: Get Telegram bot status
+      responses:
+        "200":
+          description: Current bot process and wallet configuration status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotStatus"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +47,31 @@ components:
           type: string
       required:
         - status
+    BotStatus:
+      type: object
+      properties:
+        name:
+          type: string
+        process:
+          type: string
+          enum: [starting, running, stopped, error]
+        mode:
+          type: string
+          enum: [paper, real]
+        walletConfigured:
+          type: boolean
+        startedAt:
+          type: [string, "null"]
+        exitCode:
+          type: [integer, "null"]
+        lastError:
+          type: [string, "null"]
+      required:
+        - name
+        - process
+        - mode
+        - walletConfigured
+        - startedAt
+        - exitCode
+        - lastError
 
