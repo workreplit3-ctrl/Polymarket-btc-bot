@@ -243,7 +243,13 @@ class PolymarketClient:
         size: float,           # number of shares
     ) -> Dict[str, Any]:
         """Place a real signed order. Requires py-clob-client-v2 installed and
-        wallet configured. Returns the order receipt."""
+        wallet configured.
+
+        The returned receipt always includes ``order_status`` (one of
+        ``accepted``, ``partially_filled``, ``filled``, or ``rejected``) and
+        ``filled_size``.  An accepted order is not a fill: callers must only
+        update positions from the reported filled size.
+        """
         if self._clob_signer is None:
             try:
                 # Lazy import — allows paper mode without the dependency
@@ -307,9 +313,12 @@ class PolymarketClient:
         receipt = order if isinstance(order, dict) else {"raw": str(order)}
         order_id = str(receipt.get("orderID") or receipt.get("id") or "")
 
-        if not self._order_is_filled(receipt, size):
+        if self._order_status(receipt, size) not in {
+            "filled", "partially_filled", "rejected"
+        }:
             # Some responses omit the final status while the CLOB is resolving
-            # transaction hashes. Query the order before treating it as failed.
+            # transaction hashes. Query the order before returning an accepted
+            # or partial result.
             for _ in range(3):
                 if not order_id:
                     break
@@ -323,41 +332,90 @@ class PolymarketClient:
                     continue
                 if isinstance(detail, dict):
                     receipt = {**receipt, **detail}
-                    if self._order_is_filled(receipt, size):
+                    if self._order_status(receipt, size) in {
+                        "filled", "partially_filled", "rejected"
+                    }:
                         break
 
-        if not self._order_is_filled(receipt, size):
-            if order_id:
-                await self.cancel_order(order_id)
-            status = receipt.get("status", "unknown")
-            raise RuntimeError(
-                f"order was not confirmed filled (status={status}, order_id={order_id or 'none'})"
-            )
+        status = self._order_status(receipt, size)
+        filled_size = self._filled_size(receipt, size, status)
+        receipt = {
+            **receipt,
+            "order_status": status,
+            "filled_size": filled_size,
+            "fill_price": self._fill_price(receipt, price),
+        }
+
+        # FOK should not leave a remainder live. Cancel an accepted or
+        # partially-filled remainder before handing the result to the engine.
+        if status in {"accepted", "partially_filled"} and order_id:
+            await self.cancel_order(order_id)
 
         log.info(
-            f"order filled: token={token_id[:8]}… side={side} "
-            f"price={price} size={size}"
+            f"order result: token={token_id[:8]}… side={side} "
+            f"status={status} filled={filled_size:.6f}/{size:.6f}"
         )
         return receipt
 
     @staticmethod
-    def _order_is_filled(order: Dict[str, Any], requested_size: float) -> bool:
-        """Return true only for a fully matched order, never just accepted/live."""
+    def _order_status(order: Dict[str, Any], requested_size: float) -> str:
+        """Normalize a CLOB response without treating acceptance as a fill."""
         status = str(order.get("status") or "").strip().lower()
-        matched_status = status in {"matched", "filled", "executed", "complete", "completed"}
-        saw_match_amount = False
-        for key in ("size_matched", "sizeMatched", "filled_size", "filledSize"):
+        filled_size = PolymarketClient._filled_size(order, requested_size, "")
+        if filled_size >= requested_size * 0.999:
+            return "filled"
+        if filled_size > 0:
+            return "partially_filled"
+        if status in {
+            "rejected", "reject", "failed", "failure", "cancelled",
+            "canceled", "cancel", "expired", "invalid",
+        }:
+            return "rejected"
+        return "accepted"
+
+    @staticmethod
+    def _filled_size(
+        order: Dict[str, Any], requested_size: float, normalized_status: str
+    ) -> float:
+        """Read the actual matched size from the CLOB response."""
+        for key in (
+            "size_matched", "sizeMatched", "filled_size", "filledSize",
+            "matched_size", "matchedSize", "executed_size", "executedSize",
+        ):
             value = order.get(key)
             if value is None:
                 continue
-            saw_match_amount = True
             try:
-                return float(value) >= requested_size * 0.999
+                return min(requested_size, max(0.0, float(value)))
             except (TypeError, ValueError):
                 continue
-        # Some FOK responses include only a terminal matched status. Accept
-        # that form, but never let an explicit partial amount pass through.
-        return matched_status and not saw_match_amount
+        # FOK responses can expose only a terminal matched status. In that
+        # case the terminal status is the confirmation for the requested size.
+        status = str(order.get("status") or "").strip().lower()
+        if normalized_status == "filled" or status in {
+            "matched", "filled", "executed", "complete", "completed",
+        }:
+            return requested_size
+        return 0.0
+
+    @staticmethod
+    def _fill_price(order: Dict[str, Any], fallback: float) -> float:
+        for key in ("avg_price", "average_price", "avgPrice", "fill_price", "price"):
+            value = order.get(key)
+            if value is None:
+                continue
+            try:
+                parsed = float(value)
+                if parsed > 0:
+                    return parsed
+            except (TypeError, ValueError):
+                continue
+        return fallback
+
+    @staticmethod
+    def _order_is_filled(order: Dict[str, Any], requested_size: float) -> bool:
+        """Backward-compatible full-fill predicate for callers and tests."""
+        return PolymarketClient._order_status(order, requested_size) == "filled"
 
     async def cancel_order(self, order_id: str) -> bool:
         if self._clob_signer is None:

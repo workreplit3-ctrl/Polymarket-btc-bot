@@ -54,3 +54,19 @@ def test_real_order_uses_current_order_args_shape_without_network() -> None:
     assert order_args.size == 2.5
     assert order_args.side is Side.BUY
     assert order_type is OrderType.FOK
+
+
+def test_order_status_requires_actual_fill_amount() -> None:
+    requested = 10.0
+    assert PolymarketClient._order_status(
+        {"status": "accepted", "orderID": "accepted"}, requested
+    ) == "accepted"
+    assert PolymarketClient._order_status(
+        {"status": "matched", "size_matched": "4"}, requested
+    ) == "partially_filled"
+    assert PolymarketClient._order_status(
+        {"status": "matched", "size_matched": "10"}, requested
+    ) == "filled"
+    assert PolymarketClient._order_status(
+        {"status": "rejected", "orderID": "rejected"}, requested
+    ) == "rejected"

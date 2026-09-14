@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS trades (
     size_usdc REAL NOT NULL,
     pnl REAL DEFAULT 0,
     order_id TEXT,
+    order_status TEXT,
     raw TEXT
 );
 
@@ -65,6 +66,12 @@ class Storage:
         c = self._conn()
         try:
             c.executescript(SCHEMA)
+            columns = {
+                row["name"]
+                for row in c.execute("PRAGMA table_info(trades)").fetchall()
+            }
+            if "order_status" not in columns:
+                c.execute("ALTER TABLE trades ADD COLUMN order_status TEXT")
             c.commit()
         finally:
             c.close()
@@ -79,8 +86,8 @@ class Storage:
         try:
             c.execute(
                 "INSERT INTO trades (ts,mode,condition_id,slug,side,action,price,"
-                "size_shares,size_usdc,pnl,order_id,raw) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                "size_shares,size_usdc,pnl,order_id,order_status,raw) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     kw.get("ts", time.time()),
                     kw.get("mode", "paper"),
@@ -93,7 +100,8 @@ class Storage:
                     float(kw.get("size_usdc", 0.0)),
                     float(kw.get("pnl", 0.0)),
                     kw.get("order_id", ""),
-                    json.dumps(kw.get("raw", {})),
+                    kw.get("order_status", ""),
+                    json.dumps(kw.get("raw", {}), default=str),
                 ),
             )
             c.commit()

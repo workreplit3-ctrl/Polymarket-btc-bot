@@ -263,6 +263,7 @@ class TelegramBot:
                 f"{ts} {t['mode']} {t['action']} {t['side']} "
                 f"{t['slug']} @ {t['price']:.4f} "
                 f"(${t['size_usdc']:.2f}) pnl=${t['pnl']:.2f}"
+                f"{' status=' + t['order_status'] if t.get('order_status') else ''}"
             )
         await update.effective_message.reply_text("\n".join(lines))
 

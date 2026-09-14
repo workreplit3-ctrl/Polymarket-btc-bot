@@ -172,6 +172,7 @@ class Orchestrator:
                 await self.tg.send(
                     f"{'📈' if event.action == 'OPEN' else '📉'} "
                     f"{event.action} {event.side} {event.slug}\n"
+                    f"status {event.order_status or 'filled'}\n"
                     f"price {event.price:.4f}  ${event.size_usdc:.2f}\n"
                     f"pnl ${event.pnl:.2f}\n"
                     f"reason: {event.reason}"

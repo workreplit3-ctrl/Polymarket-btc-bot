@@ -27,11 +27,14 @@ class TradeEvent:
     size_usdc: float
     pnl: float
     reason: str
+    order_status: str = ""
 
 
 class TradingEngine:
-    """Unified engine for paper and real modes. The only difference is whether
-    `place_order` actually hits the CLOB or just records a fill at the best ask.
+    """Unified engine for paper and real modes.
+
+    Paper mode records the requested size as immediately filled. Real mode
+    records only the size confirmed by the CLOB receipt.
     """
 
     def __init__(self, cfg: Config, poly: PolymarketClient,
@@ -84,6 +87,8 @@ class TradingEngine:
         size_shares = size_usdc / fill_price if fill_price > 0 else 0.0
 
         order_id = ""
+        order_status = "filled" if self.cfg.mode == "paper" else ""
+        filled_shares = size_shares
         if self.cfg.mode == "real":
             try:
                 receipt = await self.poly.place_order(
@@ -92,12 +97,24 @@ class TradingEngine:
                     side="BUY", price=fill_price, size=size_shares,
                 )
                 order_id = str(receipt.get("orderID") or receipt.get("id") or "")
+                order_status = str(receipt.get("order_status") or "accepted")
+                filled_shares = float(receipt.get("filled_size") or 0.0)
+                if order_status not in {"filled", "partially_filled"} or filled_shares <= 0:
+                    return TradeEvent(
+                        action="SKIP", side=side, slug=market.slug,
+                        price=fill_price, size_usdc=0.0, pnl=0.0,
+                        reason=f"order {order_status}; no shares filled",
+                        order_status=order_status,
+                    )
+                fill_price = float(receipt.get("fill_price") or fill_price)
             except Exception as e:
                 log.error(f"real order placement failed: {e}")
                 return TradeEvent(action="SKIP", side=side, slug=market.slug,
                                   price=fill_price, size_usdc=size_usdc, pnl=0.0,
-                                  reason=f"order failed: {e}")
+                                  reason=f"order rejected: {e}",
+                                  order_status="rejected")
 
+        actual_size_usdc = filled_shares * fill_price
         pos = Position(
             market_condition_id=market.condition_id,
             market_slug=market.slug,
@@ -105,8 +122,8 @@ class TradingEngine:
             token_id=(market.outcome_up_token_id if side == "UP"
                       else market.outcome_down_token_id),
             entry_price=fill_price,
-            size_shares=size_shares,
-            size_usdc=size_usdc,
+            size_shares=filled_shares,
+            size_usdc=actual_size_usdc,
             entry_ts=time.time(),
             mark_price=fill_price,
         )
@@ -114,14 +131,15 @@ class TradingEngine:
         await self.storage.log_trade(
             mode=self.cfg.mode, condition_id=market.condition_id,
             slug=market.slug, side=side, action="OPEN",
-            price=fill_price, size_shares=size_shares, size_usdc=size_usdc,
-            order_id=order_id, raw={"signal_reason": signal.reason},
+            price=fill_price, size_shares=filled_shares, size_usdc=actual_size_usdc,
+            order_id=order_id, order_status=order_status,
+            raw={"signal_reason": signal.reason, "order_status": order_status},
         )
         if self.cfg.mode == "paper":
             self.paper_balance -= size_usdc
         return TradeEvent(action="OPEN", side=side, slug=market.slug,
-                          price=fill_price, size_usdc=size_usdc, pnl=0.0,
-                          reason=signal.reason)
+                          price=fill_price, size_usdc=actual_size_usdc, pnl=0.0,
+                          reason=signal.reason, order_status=order_status)
 
     # ----- exit ----------------------------------------------------
     async def _exit_current(self, signal: Signal, market: MarketInfo,
@@ -140,6 +158,8 @@ class TradingEngine:
         fill_price = bb.price
 
         order_id = ""
+        order_status = "filled" if self.cfg.mode == "paper" else ""
+        filled_shares = pos.size_shares
         if self.cfg.mode == "real":
             try:
                 receipt = await self.poly.place_order(
@@ -147,13 +167,26 @@ class TradingEngine:
                     price=fill_price, size=pos.size_shares,
                 )
                 order_id = str(receipt.get("orderID") or receipt.get("id") or "")
+                order_status = str(receipt.get("order_status") or "accepted")
+                filled_shares = float(receipt.get("filled_size") or 0.0)
+                if order_status not in {"filled", "partially_filled"} or filled_shares <= 0:
+                    return TradeEvent(
+                        action="SKIP", side=pos.side, slug=market.slug,
+                        price=fill_price, size_usdc=0.0, pnl=0.0,
+                        reason=f"sell order {order_status}; no shares filled",
+                        order_status=order_status,
+                    )
+                fill_price = float(receipt.get("fill_price") or fill_price)
             except Exception as e:
                 log.error(f"real sell failed: {e}")
                 return TradeEvent(action="SKIP", side=pos.side, slug=market.slug,
                                   price=fill_price, size_usdc=pos.size_usdc, pnl=0.0,
-                                  reason=f"sell failed: {e}")
+                                  reason=f"sell rejected: {e}",
+                                  order_status="rejected")
 
-        closed = self.risk.close_position(market.condition_id, fill_price)
+        closed = self.risk.close_position(
+            market.condition_id, fill_price, size_shares=filled_shares
+        )
         if closed is None:
             return None
         await self.storage.log_trade(
@@ -161,12 +194,13 @@ class TradingEngine:
             slug=market.slug, side=closed.side, action="CLOSE",
             price=fill_price, size_shares=closed.size_shares,
             size_usdc=closed.size_usdc, pnl=closed.pnl_usdc,
-            order_id=order_id, raw={"reason": signal.reason},
+            order_id=order_id, order_status=order_status,
+            raw={"reason": signal.reason, "order_status": order_status},
         )
         if self.cfg.mode == "paper":
             self.paper_balance += closed.size_usdc + closed.pnl_usdc
         return TradeEvent(
             action="CLOSE", side=closed.side, slug=market.slug,
             price=fill_price, size_usdc=closed.size_usdc, pnl=closed.pnl_usdc,
-            reason=signal.reason,
+            reason=signal.reason, order_status=order_status,
         )

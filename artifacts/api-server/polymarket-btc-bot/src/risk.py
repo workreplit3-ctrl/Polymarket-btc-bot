@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -70,24 +70,49 @@ class RiskManager:
         log.info(f"position OPEN: {p.market_slug} {p.side} "
                  f"size={p.size_shares:.4f}@{p.entry_price:.4f} (${p.size_usdc:.2f})")
 
-    def close_position(self, condition_id: str, exit_price: float) -> Optional[Position]:
-        p = self.state.open_positions.pop(condition_id, None)
+    def close_position(
+        self, condition_id: str, exit_price: float,
+        size_shares: Optional[float] = None,
+    ) -> Optional[Position]:
+        p = self.state.open_positions.get(condition_id)
         if p is None:
             return None
-        p.exit_price = exit_price
-        p.exit_ts = time.time()
+
+        close_shares = p.size_shares if size_shares is None else min(
+            max(0.0, size_shares), p.size_shares
+        )
+        if close_shares <= 0:
+            return None
+
+        # Return a separate closed-trade record for a partial fill while
+        # keeping the remaining actual shares exposed to risk.
+        closed = replace(
+            p,
+            size_shares=close_shares,
+            size_usdc=p.entry_price * close_shares,
+            exit_price=exit_price,
+            exit_ts=time.time(),
+        )
         # PnL for a long position: shares * (exit - entry)
-        p.pnl_usdc = p.size_shares * (exit_price - p.entry_price)
-        p.status = "LOST" if p.pnl_usdc < 0 else "CLOSED"
-        self.state.last_exit_ts = p.exit_ts
-        if p.pnl_usdc < 0:
-            self.state.last_loss_ts = p.exit_ts
+        closed.pnl_usdc = closed.size_shares * (exit_price - closed.entry_price)
+        closed.status = "LOST" if closed.pnl_usdc < 0 else "CLOSED"
+        remaining_shares = p.size_shares - close_shares
+        if remaining_shares <= max(1e-9, p.size_shares * 1e-9):
+            self.state.open_positions.pop(condition_id, None)
+        else:
+            p.size_shares = remaining_shares
+            p.size_usdc = p.entry_price * remaining_shares
+
+        self.state.last_exit_ts = closed.exit_ts
+        if closed.pnl_usdc < 0:
+            self.state.last_loss_ts = closed.exit_ts
         self._maybe_reset_daily()
-        self.state.daily_pnl += p.pnl_usdc
+        self.state.daily_pnl += closed.pnl_usdc
         log.info(f"position CLOSE: {p.market_slug} {p.side} "
-                 f"exit={exit_price:.4f} pnl=${p.pnl_usdc:.2f} "
+                 f"shares={close_shares:.4f} exit={exit_price:.4f} "
+                 f"pnl=${closed.pnl_usdc:.2f} "
                  f"(daily=${self.state.daily_pnl:.2f})")
-        return p
+        return closed
 
     def mark_positions(self, marks: Dict[str, float]) -> None:
         """Update mark prices for open positions. Key = condition_id."""
