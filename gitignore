@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+
+# Real config — never commit
+config/config.yaml
+config/config.*.yaml
+!config/config.example.yaml
+
+# Runtime state
+data/
+logs/
+*.db
+*.db-journal
+*.log

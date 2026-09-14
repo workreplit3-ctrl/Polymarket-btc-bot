@@ -1,0 +1,24 @@
+services:
+  polymarket-btc-bot:
+    build: .
+    container_name: polymarket-btc-bot
+    restart: unless-stopped
+    command: ["python", "-m", "src.main", "--config", "config/config.yaml"]
+    volumes:
+      - ./config:/app/config:ro
+      - bot-data:/app/data
+      - bot-logs:/app/logs
+    environment:
+      - TZ=UTC
+    # If Polymarket is geo-blocked in your region, you can route the container
+    # through a host-side VPN / proxy. The bot itself just needs outbound
+    # HTTPS + WSS to Binance, Coinbase, and Polymarket.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-data:
+  bot-logs:

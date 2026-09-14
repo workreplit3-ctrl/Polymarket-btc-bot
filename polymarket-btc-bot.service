@@ -1,0 +1,32 @@
+[Unit]
+Description=Polymarket BTC Up/Down Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=polymarket-bot
+Group=polymarket-bot
+WorkingDirectory=/opt/polymarket-btc-bot
+ExecStart=/opt/polymarket-btc-bot/.venv/bin/python -m src.main --config /opt/polymarket-btc-bot/config/config.yaml
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/polymarket-btc-bot/bot.stdout.log
+StandardError=append:/var/log/polymarket-btc-bot/bot.stderr.log
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/polymarket-btc-bot/data /opt/polymarket-btc-bot/logs /var/log/polymarket-btc-bot
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target
