@@ -98,6 +98,7 @@ class PolymarketCfg:
     http_proxy: Optional[str]
     wallet: WalletCfg
     market_filter: MarketFilterCfg
+    data_api_host: str = "https://data-api.polymarket.com"
 
 
 @dataclass
@@ -188,6 +189,7 @@ def _build(raw: Dict[str, Any]) -> Config:
             max_minutes_to_resolution=int(mf.get("max_minutes_to_resolution", 10)),
             min_volume_usd=float(mf.get("min_volume_usd", 1000)),
         ),
+        data_api_host=pm.get("data_api_host", "https://data-api.polymarket.com"),
     )
 
     s = raw.get("strategy", {})
@@ -269,6 +271,7 @@ def empty_paper_config() -> Config:
             "chain_id": 137,
             "clob_host": "https://clob.polymarket.com",
             "gamma_host": "https://gamma-api.polymarket.com",
+            "data_api_host": "https://data-api.polymarket.com",
             "http_proxy": None,
             "wallet": {"private_key": None, "funder": None},
             "market_filter": {

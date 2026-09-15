@@ -23,7 +23,7 @@ from .config import Config
 from .engine import TradeEvent, TradingEngine
 from .logger import get_logger
 from .polymarket_client import MarketInfo, PolymarketClient
-from .risk import RiskManager
+from .risk import Position, RiskManager
 from .storage import Storage
 from .strategy import DivergenceStrategy, Signal, SignalAction
 from .telegram_bot import TelegramBot
@@ -49,6 +49,8 @@ class Orchestrator:
         self._pause_file = Path(cfg.storage.sqlite_path).with_name("control.json")
         self._pause_flag = Path(cfg.storage.sqlite_path).with_name("paused.flag")
         self.paused: bool = self._read_pause_state()
+        self._real_entries_paused: bool = False
+        self.reconciliation_error: Optional[str] = None
         self._shutdown = asyncio.Event()
         self._market_refresh_ts: float = 0.0
         # Refresh markets every 5 minutes
@@ -59,9 +61,26 @@ class Orchestrator:
     async def run(self) -> None:
         log.info(f"orchestrator starting in {self.cfg.mode} mode")
         self._sync_pause_state()
+        if self.cfg.mode == "real":
+            try:
+                await self._reconcile_real_positions()
+            except Exception as exc:
+                self._real_entries_paused = True
+                self.reconciliation_error = str(exc)
+                log.exception(
+                    "real position reconciliation failed; new real entries "
+                    "will remain paused"
+                )
         await self.feed.start()
         await self.tg.start()
         await self.tg.send(f"🤖 bot started in *{self.cfg.mode}* mode")
+        if self.reconciliation_error:
+            await self.tg.send(
+                "⚠️ *real-entry reconciliation error*\n"
+                f"{self.reconciliation_error}\n"
+                "New real entries are paused until the bot is restarted "
+                "after wallet access is restored."
+            )
         try:
             await self._loop()
         finally:
@@ -194,6 +213,16 @@ class Orchestrator:
         self._sync_pause_state()
         if self.paused:
             return
+        if (
+            self.cfg.mode == "real"
+            and self._real_entries_paused
+            and signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN)
+        ):
+            log.warning(
+                "real entry blocked because wallet reconciliation has not "
+                "completed successfully"
+            )
+            return
         if signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN, SignalAction.EXIT):
             event = await self.engine.execute(signal, market, up_book, down_book)
             if event and event.action in ("OPEN", "CLOSE"):
@@ -215,13 +244,74 @@ class Orchestrator:
                         f"exit_reasons={summary['exit_reasons']}"
                     )
 
-    async def _refresh_markets(self) -> None:
+    async def _reconcile_real_positions(self) -> None:
+        """Discover active BTC markets and rebuild risk from wallet holdings."""
+        await self._refresh_markets(raise_on_error=True)
+        holdings = await self.poly.get_confirmed_token_holdings(
+            self.tracked_markets
+        )
+        markets_by_condition = {
+            market.condition_id: market for market in self.tracked_markets
+        }
+        markets_by_token = {
+            token_id: market
+            for market in self.tracked_markets
+            for token_id in (
+                market.outcome_up_token_id,
+                market.outcome_down_token_id,
+            )
+            if token_id
+        }
+        positions: List[Position] = []
+        position_conditions: set[str] = set()
+        for holding in holdings:
+            market = (
+                markets_by_condition.get(holding.condition_id)
+                or markets_by_token.get(holding.token_id)
+            )
+            if market is None:
+                continue
+            if holding.token_id == market.outcome_up_token_id:
+                side = "UP"
+            elif holding.token_id == market.outcome_down_token_id:
+                side = "DOWN"
+            else:
+                continue
+            if market.condition_id in position_conditions:
+                raise RuntimeError(
+                    "cannot reconcile real positions: wallet has holdings "
+                    f"on both outcome tokens for {market.slug}"
+                )
+            position_conditions.add(market.condition_id)
+            positions.append(
+                Position(
+                    market_condition_id=market.condition_id,
+                    market_slug=market.slug,
+                    side=side,
+                    token_id=holding.token_id,
+                    entry_price=holding.avg_price,
+                    size_shares=holding.size_shares,
+                    size_usdc=holding.size_shares * holding.avg_price,
+                    entry_ts=time.time(),
+                    mark_price=holding.avg_price,
+                )
+            )
+        self.risk.replace_open_positions(positions)
+        self._real_entries_paused = False
+        log.info(
+            f"real position reconciliation succeeded: "
+            f"{len(positions)} confirmed position(s)"
+        )
+
+    async def _refresh_markets(self, raise_on_error: bool = False) -> None:
         try:
             markets = await self.poly.list_active_btc_updown_markets(
                 self.cfg.polymarket.market_filter.slug_prefix
             )
         except Exception as e:
             log.warning(f"market refresh failed: {e}")
+            if raise_on_error:
+                raise
             return
         # Filter by the intended resolution window and minimum volume. Gamma can
         # expose future BTC markets as active, so the upper bound is mandatory:

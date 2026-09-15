@@ -50,6 +50,8 @@ polymarket:
   clob_host: "https://clob.polymarket.com"
   # GraphQL/REST host for market metadata
   gamma_host: "https://gamma-api.polymarket.com"
+  # REST host for confirmed wallet token positions
+  data_api_host: "https://data-api.polymarket.com"
   # Optional: proxy URL if running from a region where Polymarket is geo-blocked.
   # Leave null if not needed.
   http_proxy: null

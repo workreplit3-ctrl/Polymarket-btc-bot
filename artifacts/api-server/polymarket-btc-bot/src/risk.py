@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from .config import RiskCfg
 from .logger import get_logger
@@ -69,6 +69,16 @@ class RiskManager:
         self.state.open_positions[p.market_condition_id] = p
         log.info(f"position OPEN: {p.market_slug} {p.side} "
                  f"size={p.size_shares:.4f}@{p.entry_price:.4f} (${p.size_usdc:.2f})")
+
+    def replace_open_positions(self, positions: Iterable[Position]) -> None:
+        """Replace memory state with positions confirmed by the wallet."""
+        self.state.open_positions.clear()
+        for position in positions:
+            self.add_position(position)
+        log.info(
+            f"risk reconciliation complete: {len(self.state.open_positions)} "
+            "confirmed open position(s)"
+        )
 
     def close_position(
         self, condition_id: str, exit_price: float,

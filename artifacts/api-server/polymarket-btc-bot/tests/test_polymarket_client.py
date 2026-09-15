@@ -9,6 +9,8 @@ from py_clob_client_v2 import OrderArgs, OrderType, Side
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.polymarket_client import PolymarketClient
+from src.config import empty_paper_config
+from src.polymarket_client import MarketInfo
 
 
 def test_real_mode_accepts_installed_order_interface() -> None:
@@ -87,3 +89,94 @@ def test_order_status_requires_actual_fill_amount() -> None:
     assert PolymarketClient._order_status(
         {"status": "rejected", "orderID": "rejected"}, requested
     ) == "rejected"
+
+
+class FakeResponse:
+    def __init__(self, payload: Any) -> None:
+        self.payload = payload
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> Any:
+        return self.payload
+
+
+class FakeHttp:
+    def __init__(self, payload: Any) -> None:
+        self.payload = payload
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def get(self, url: str, *, params: dict[str, Any]) -> FakeResponse:
+        self.calls.append((url, params))
+        return FakeResponse(self.payload)
+
+
+def _holding_market() -> MarketInfo:
+    return MarketInfo(
+        condition_id="condition-1",
+        question="BTC up or down?",
+        slug="btc-updown-5m-test",
+        end_date="2099-01-01T00:00:00Z",
+        outcome_up_token_id="up-token",
+        outcome_down_token_id="down-token",
+        outcomes=["Up", "Down"],
+        volume=1000.0,
+        active=True,
+    )
+
+
+def test_confirmed_token_holdings_filter_active_markets_and_ignore_zero_balances() -> None:
+    cfg = empty_paper_config().polymarket
+    cfg.wallet.funder = "0xfunder"
+    client = object.__new__(PolymarketClient)
+    client.cfg = cfg
+    client._http = FakeHttp([
+        {
+            "conditionId": "condition-1",
+            "asset": "up-token",
+            "size": "12.5",
+            "avgPrice": "0.42",
+        },
+        {
+            "conditionId": "condition-1",
+            "asset": "down-token",
+            "size": "0",
+            "avgPrice": "0.58",
+        },
+        {
+            "conditionId": "other-market",
+            "asset": "other-token",
+            "size": "100",
+            "avgPrice": "0.5",
+        },
+    ])
+
+    holdings = asyncio.run(client.get_confirmed_token_holdings([_holding_market()]))
+
+    assert len(holdings) == 1
+    assert holdings[0].condition_id == "condition-1"
+    assert holdings[0].token_id == "up-token"
+    assert holdings[0].size_shares == 12.5
+    assert holdings[0].avg_price == 0.42
+    url, params = client._http.calls[0]
+    assert url.endswith("/positions")
+    assert params["user"] == "0xfunder"
+    assert params["market"] == "condition-1"
+
+
+def test_confirmed_token_holdings_failure_is_not_silently_flat() -> None:
+    cfg = empty_paper_config().polymarket
+    cfg.wallet.funder = "0xfunder"
+    client = object.__new__(PolymarketClient)
+    client.cfg = cfg
+    client._http = FakeHttp([
+        {
+            "conditionId": "condition-1",
+            "asset": "up-token",
+            "size": "12.5",
+        }
+    ])
+
+    with pytest.raises(RuntimeError, match="no valid average price"):
+        asyncio.run(client.get_confirmed_token_holdings([_holding_market()]))

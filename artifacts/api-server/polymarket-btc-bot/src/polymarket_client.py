@@ -40,6 +40,15 @@ class MarketInfo:
 
 
 @dataclass
+class TokenHolding:
+    """A confirmed conditional-token holding returned by the Data API."""
+    condition_id: str
+    token_id: str
+    size_shares: float
+    avg_price: float
+
+
+@dataclass
 class OrderBookLevel:
     price: float
     size: float
@@ -136,6 +145,7 @@ class PolymarketClient:
         """
         out: List[MarketInfo] = []
         seen: set[str] = set()
+        request_failed = False
 
         now = int(time.time())
         for interval_sec in (300,):
@@ -154,6 +164,7 @@ class PolymarketClient:
                     if info is not None:
                         out.append(info)
                 except Exception as e:
+                    request_failed = True
                     log.debug(f"direct market lookup failed for {slug}: {e}")
 
         # Direct lookup is authoritative for the short-duration strategy. Do
@@ -179,6 +190,7 @@ class PolymarketClient:
                 r.raise_for_status()
                 payload = r.json()
             except Exception as e:
+                request_failed = True
                 log.error(f"gamma markets fetch failed: {e}")
                 break
 
@@ -203,6 +215,8 @@ class PolymarketClient:
             if out:
                 break
 
+        if request_failed and not out:
+            raise RuntimeError("active BTC market discovery unavailable")
         log.info(f"found {len(out)} active BTC up/down markets")
         return out
 
@@ -263,6 +277,139 @@ class PolymarketClient:
             volume=market_activity,
             active=bool(m.get("active", True)),
         )
+
+    # ----- Data API: confirmed wallet positions --------------------
+    async def get_confirmed_token_holdings(
+        self, markets: List[MarketInfo]
+    ) -> List[TokenHolding]:
+        """Fetch confirmed token balances for the supplied active markets.
+
+        The Data API is queried by the configured funder wallet and market
+        condition IDs.  A successful empty response is a valid flat wallet;
+        transport, HTTP, and malformed-response failures are raised so real
+        mode can keep entries disabled instead of trading against stale state.
+        """
+        funder = (self.cfg.wallet.funder or "").strip()
+        if not funder:
+            raise RuntimeError(
+                "cannot reconcile real positions: wallet funder is not configured"
+            )
+        condition_ids = {
+            str(m.condition_id).strip() for m in markets if m.condition_id
+        }
+        params: Dict[str, Any] = {"user": funder, "limit": 500}
+        if condition_ids:
+            params["market"] = ",".join(sorted(condition_ids))
+        response = await self._http.get(
+            f"{self.cfg.data_api_host.rstrip('/')}/positions",
+            params=params,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if isinstance(payload, dict):
+            payload = payload.get("positions", payload.get("data"))
+        if not isinstance(payload, list):
+            raise RuntimeError(
+                "cannot reconcile real positions: wallet positions response "
+                "was not a list"
+            )
+
+        market_by_condition = {m.condition_id: m for m in markets}
+        token_to_market = {
+            token_id: m
+            for m in markets
+            for token_id in (
+                m.outcome_up_token_id,
+                m.outcome_down_token_id,
+            )
+            if token_id
+        }
+        holdings: Dict[tuple[str, str], TokenHolding] = {}
+        for row in payload:
+            if not isinstance(row, dict):
+                raise RuntimeError(
+                    "cannot reconcile real positions: wallet positions "
+                    "response contained a non-object row"
+                )
+            token_id = str(
+                row.get("asset")
+                or row.get("tokenId")
+                or row.get("token_id")
+                or ""
+            ).strip()
+            condition_id = str(
+                row.get("conditionId")
+                or row.get("condition_id")
+                or row.get("market")
+                or ""
+            ).strip()
+            market = market_by_condition.get(condition_id) or token_to_market.get(token_id)
+            if market is None or not token_id:
+                # The user may hold unrelated positions. They are not part of
+                # this bot's active BTC risk universe.
+                continue
+            if not condition_id:
+                condition_id = market.condition_id
+            if condition_id != market.condition_id:
+                continue
+
+            size = self._position_number(
+                row, ("size", "quantity", "balance", "amount")
+            )
+            if size is None:
+                raise RuntimeError(
+                    "cannot reconcile real positions: wallet position has "
+                    f"no numeric size for token {token_id[:12]}…"
+                )
+            if size <= 1e-9:
+                continue
+            avg_price = self._position_number(
+                row, ("avgPrice", "avg_price", "averagePrice", "entryPrice")
+            )
+            if avg_price is None or not 0.0 < avg_price <= 1.0:
+                raise RuntimeError(
+                    "cannot reconcile real positions: wallet position has "
+                    f"no valid average price for token {token_id[:12]}…"
+                )
+
+            key = (condition_id, token_id)
+            previous = holdings.get(key)
+            if previous is None:
+                holdings[key] = TokenHolding(
+                    condition_id=condition_id,
+                    token_id=token_id,
+                    size_shares=size,
+                    avg_price=avg_price,
+                )
+            else:
+                total_shares = previous.size_shares + size
+                weighted_price = (
+                    previous.size_shares * previous.avg_price
+                    + size * avg_price
+                ) / total_shares
+                holdings[key] = TokenHolding(
+                    condition_id=condition_id,
+                    token_id=token_id,
+                    size_shares=total_shares,
+                    avg_price=weighted_price,
+                )
+        return list(holdings.values())
+
+    @staticmethod
+    def _position_number(
+        row: Dict[str, Any], keys: tuple[str, ...]
+    ) -> Optional[float]:
+        for key in keys:
+            value = row.get(key)
+            if value is None or value == "":
+                continue
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if parsed >= 0:
+                return parsed
+        return None
 
     # ----- CLOB: orderbook ------------------------------------------
     async def get_orderbook(self, token_id: str) -> OrderBook:
