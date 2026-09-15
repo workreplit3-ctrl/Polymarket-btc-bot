@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS signals (
     our_prob_up REAL,
     market_prob_up REAL,
     edge REAL,
+    actionable_edge_up REAL,
+    actionable_edge_down REAL,
     reason TEXT
 );
 
@@ -72,6 +74,18 @@ class Storage:
             }
             if "order_status" not in columns:
                 c.execute("ALTER TABLE trades ADD COLUMN order_status TEXT")
+            signal_columns = {
+                row["name"]
+                for row in c.execute("PRAGMA table_info(signals)").fetchall()
+            }
+            if "actionable_edge_up" not in signal_columns:
+                c.execute(
+                    "ALTER TABLE signals ADD COLUMN actionable_edge_up REAL"
+                )
+            if "actionable_edge_down" not in signal_columns:
+                c.execute(
+                    "ALTER TABLE signals ADD COLUMN actionable_edge_down REAL"
+                )
             c.commit()
         finally:
             c.close()
@@ -119,7 +133,8 @@ class Storage:
         try:
             c.execute(
                 "INSERT INTO signals (ts,action,btc_price,btc_drift_pct,our_prob_up,"
-                "market_prob_up,edge,reason) VALUES (?,?,?,?,?,?,?,?)",
+                "market_prob_up,edge,actionable_edge_up,actionable_edge_down,reason) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
                     kw.get("ts", time.time()),
                     kw.get("action", ""),
@@ -128,6 +143,8 @@ class Storage:
                     float(kw.get("our_prob_up", 0.0)),
                     float(kw.get("market_prob_up", 0.0)),
                     float(kw.get("edge", 0.0)),
+                    kw.get("actionable_edge_up"),
+                    kw.get("actionable_edge_down"),
                     kw.get("reason", ""),
                 ),
             )
@@ -178,5 +195,41 @@ class Storage:
                 "WHERE action='CLOSE' AND ts >= ?", (today_start,)
             ).fetchone()
             return float(r["s"]) if r else 0.0
+        finally:
+            c.close()
+
+    async def paper_summary(self, since_ts: float = 0.0) -> dict[str, Any]:
+        """Return closed paper-trade counts, P/L, and exit reasons.
+
+        The reason is stored in each CLOSE event's raw JSON so the summary
+        remains useful after a run and does not depend on in-memory positions.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._paper_summary_sync, since_ts)
+
+    def _paper_summary_sync(self, since_ts: float) -> dict[str, Any]:
+        c = self._conn()
+        try:
+            rows = c.execute(
+                "SELECT pnl, raw FROM trades "
+                "WHERE mode='paper' AND action='CLOSE' AND ts >= ? "
+                "ORDER BY ts ASC",
+                (since_ts,),
+            ).fetchall()
+            reasons: dict[str, int] = {}
+            pnl = 0.0
+            for row in rows:
+                pnl += float(row["pnl"] or 0.0)
+                try:
+                    raw = json.loads(row["raw"] or "{}")
+                except (TypeError, ValueError):
+                    raw = {}
+                reason = str(raw.get("reason") or "unknown")
+                reasons[reason] = reasons.get(reason, 0) + 1
+            return {
+                "closed_trades": len(rows),
+                "pnl_usdc": pnl,
+                "exit_reasons": reasons,
+            }
         finally:
             c.close()

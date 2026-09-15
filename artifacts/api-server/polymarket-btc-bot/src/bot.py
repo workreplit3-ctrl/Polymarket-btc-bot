@@ -50,6 +50,7 @@ class Orchestrator:
         self._market_refresh_ts: float = 0.0
         # Refresh markets every 5 minutes
         self._market_refresh_interval = 300
+        self._paper_run_started_at = time.time()
 
     # ----- lifecycle ------------------------------------------------
     async def run(self) -> None:
@@ -145,10 +146,34 @@ class Orchestrator:
 
         # 5. Run strategy
         signal = self.strategy.evaluate(up_book, down_book, current_side)
+        end_ts = _parse_iso_ts(market.end_date)
+        minutes_to_close = (
+            max(0.0, (end_ts - time.time()) / 60.0)
+            if end_ts is not None else float("nan")
+        )
+        up_ask = up_book.best_ask()
+        down_ask = down_book.best_ask()
+        actionable_edge_up = (
+            signal.our_prob_up - up_ask.price if up_ask is not None else None
+        )
+        actionable_edge_down = (
+            (1.0 - signal.our_prob_up) - down_ask.price
+            if down_ask is not None else None
+        )
+        log.info(
+            f"selected market slug={market.slug} "
+            f"minutes_to_close={minutes_to_close:.2f} "
+            f"signal={signal.action.value} "
+            f"actionable_edge_up={_format_edge(actionable_edge_up)} "
+            f"actionable_edge_down={_format_edge(actionable_edge_down)} "
+            f"reason={signal.reason}"
+        )
         await self.storage.log_signal(
             action=signal.action.value, btc_price=signal.btc_price,
             btc_drift_pct=signal.btc_drift_pct, our_prob_up=signal.our_prob_up,
             market_prob_up=signal.market_prob_up, edge=signal.edge,
+            actionable_edge_up=actionable_edge_up,
+            actionable_edge_down=actionable_edge_down,
             reason=signal.reason,
         )
 
@@ -177,6 +202,15 @@ class Orchestrator:
                     f"pnl ${event.pnl:.2f}\n"
                     f"reason: {event.reason}"
                 )
+                if event.action == "CLOSE" and self.cfg.mode == "paper":
+                    summary = await self.storage.paper_summary(
+                        self._paper_run_started_at
+                    )
+                    log.info(
+                        f"paper summary closed_trades={summary['closed_trades']} "
+                        f"pnl_usdc={summary['pnl_usdc']:+.4f} "
+                        f"exit_reasons={summary['exit_reasons']}"
+                    )
 
     async def _refresh_markets(self) -> None:
         try:
@@ -234,6 +268,13 @@ class Orchestrator:
 
     async def _shutdown_graceful(self) -> None:
         log.info("shutting down…")
+        if self.cfg.mode == "paper":
+            summary = await self.storage.paper_summary(self._paper_run_started_at)
+            log.info(
+                f"paper run summary closed_trades={summary['closed_trades']} "
+                f"pnl_usdc={summary['pnl_usdc']:+.4f} "
+                f"exit_reasons={summary['exit_reasons']}"
+            )
         await self.tg.stop()
         await self.feed.stop()
         await self.poly.close()
@@ -250,3 +291,7 @@ def _parse_iso_ts(s: str) -> Optional[float]:
         return datetime.fromisoformat(s2).timestamp()
     except Exception:
         return None
+
+
+def _format_edge(edge: Optional[float]) -> str:
+    return "n/a" if edge is None else f"{edge:+.4f}"
