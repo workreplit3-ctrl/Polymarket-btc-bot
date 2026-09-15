@@ -24,10 +24,12 @@ class FakeMessage:
 
 class FakeOrchestrator:
     def __init__(self) -> None:
-        self.poly = SimpleNamespace(
-            validate_real_mode=PolymarketClient.validate_real_mode,
-        )
+        self.poly = SimpleNamespace(real_mode_readiness=self._real_mode_readiness)
         self.mode_changes = 0
+
+    @staticmethod
+    def _real_mode_readiness():
+        return PolymarketClient(empty_paper_config().polymarket).real_mode_readiness()
 
     async def on_mode_changed(self) -> None:
         self.mode_changes += 1

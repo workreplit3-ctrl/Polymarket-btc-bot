@@ -79,6 +79,14 @@ class OrderBook:
         return None
 
 
+@dataclass(frozen=True)
+class RealModeReadiness:
+    """Safe-to-display result of the checks required before live trading."""
+
+    ready: bool
+    reason: str
+
+
 class PolymarketClient:
     """Async wrapper around Gamma + CLOB HTTP endpoints."""
 
@@ -127,6 +135,32 @@ class PolymarketClient:
                 "order_type=...). Upgrade or reinstall py-clob-client-v2 "
                 "before enabling real mode."
             ) from exc
+
+    def real_mode_readiness(self) -> RealModeReadiness:
+        """Report whether real trading can be enabled without exposing secrets.
+
+        Keep the dependency check delegated to ``validate_real_mode`` so the
+        operator-facing status and the activation path cannot drift apart.
+        Wallet values are intentionally never included in the result.
+        """
+        try:
+            self.validate_real_mode()
+        except RuntimeError as exc:
+            return RealModeReadiness(ready=False, reason=str(exc))
+
+        if not self.cfg.wallet.is_configured():
+            return RealModeReadiness(
+                ready=False,
+                reason=(
+                    "wallet is not configured; both the private key and "
+                    "funder address are required"
+                ),
+            )
+
+        return RealModeReadiness(
+            ready=True,
+            reason="CLOB order API is compatible and wallet is configured",
+        )
 
     def __init__(self, cfg: PolymarketCfg):
         self.cfg = cfg

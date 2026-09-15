@@ -185,9 +185,18 @@ class TelegramBot:
         div = f"{btc.divergence_pct:.3f}%"
         stale = "⚠ stale" if btc.is_stale else "ok"
         paused = "PAUSED" if self.orch.paused else "running"
+        readiness = self.orch.poly.real_mode_readiness()
+        if readiness.ready:
+            live_status = f"READY ({readiness.reason})"
+        else:
+            # Escape the one Markdown character used by the compatibility
+            # error (create_and_post_order) while keeping the reason useful.
+            safe_reason = readiness.reason.replace("_", "\\_")
+            live_status = f"PAPER ONLY ({safe_reason})"
         msg = (
             f"📊 *status*\n"
             f"mode: `{self.cfg.mode}`\n"
+            f"live trading: {live_status}\n"
             f"loop: {paused}\n"
             f"BTC mid: {btc_str}\n"
             f"feeds: binance={btc.binance is not None} coinbase={btc.coinbase is not None} "
@@ -213,7 +222,9 @@ class TelegramBot:
             # Validate before changing cfg.mode so a failed activation leaves
             # the bot safely in its previous mode.
             if new_mode == "real":
-                self.orch.poly.validate_real_mode()
+                readiness = self.orch.poly.real_mode_readiness()
+                if not readiness.ready:
+                    raise RuntimeError(readiness.reason)
             self.cfg.switch_mode(new_mode)
             await self.orch.on_mode_changed()
             await update.effective_message.reply_text(f"✅ mode → {self.cfg.mode}")

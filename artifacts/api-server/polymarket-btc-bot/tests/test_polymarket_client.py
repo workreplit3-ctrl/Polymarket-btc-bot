@@ -29,6 +29,32 @@ def test_real_mode_rejects_legacy_create_order_signature(monkeypatch) -> None:
         PolymarketClient.validate_real_mode()
 
 
+def test_real_mode_readiness_reports_paper_only_without_wallet() -> None:
+    cfg = empty_paper_config()
+
+    readiness = PolymarketClient(cfg.polymarket).real_mode_readiness()
+
+    assert readiness.ready is False
+    assert "wallet is not configured" in readiness.reason
+    assert "private key" in readiness.reason
+    assert "None" not in readiness.reason
+
+
+def test_real_mode_readiness_reports_ready_without_exposing_wallet_values() -> None:
+    cfg = empty_paper_config()
+    private_key = "test-private-key"
+    funder = "0x0000000000000000000000000000000000000001"
+    cfg.polymarket.wallet.private_key = private_key
+    cfg.polymarket.wallet.funder = funder
+
+    readiness = PolymarketClient(cfg.polymarket).real_mode_readiness()
+
+    assert readiness.ready is True
+    assert "compatible" in readiness.reason
+    assert private_key not in readiness.reason
+    assert funder not in readiness.reason
+
+
 class RecordingSigner:
     """Accept only the current py-clob-client-v2 order call shape."""
 
