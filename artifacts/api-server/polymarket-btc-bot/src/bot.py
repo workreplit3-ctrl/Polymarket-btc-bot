@@ -56,6 +56,10 @@ class Orchestrator:
         # Refresh markets every 5 minutes
         self._market_refresh_interval = 300
         self._paper_run_started_at = time.time()
+        # Keep the last successful market metadata snapshot so a position can
+        # still be settled after Gamma removes its market from the active list.
+        self._known_markets: dict[str, MarketInfo] = {}
+        self._latest_market_ids: Optional[set[str]] = None
 
     # ----- lifecycle ------------------------------------------------
     async def run(self) -> None:
@@ -148,6 +152,13 @@ class Orchestrator:
             await self._refresh_markets()
             self._market_refresh_ts = now
 
+        # Preserve the pause contract for expiry closes too: a pause blocks
+        # execution, including paper settlement, until the operator resumes.
+        self._sync_pause_state()
+        expiry_events = await self._close_expired_paper_positions()
+        for event in expiry_events:
+            await self._notify_trade_event(event)
+
         if not self.tracked_markets:
             return
 
@@ -226,14 +237,7 @@ class Orchestrator:
         if signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN, SignalAction.EXIT):
             event = await self.engine.execute(signal, market, up_book, down_book)
             if event and event.action in ("OPEN", "CLOSE"):
-                await self.tg.send(
-                    f"{'📈' if event.action == 'OPEN' else '📉'} "
-                    f"{event.action} {event.side} {event.slug}\n"
-                    f"status {event.order_status or 'filled'}\n"
-                    f"price {event.price:.4f}  ${event.size_usdc:.2f}\n"
-                    f"pnl ${event.pnl:.2f}\n"
-                    f"reason: {event.reason}"
-                )
+                await self._notify_trade_event(event)
                 if event.action == "CLOSE" and self.cfg.mode == "paper":
                     summary = await self.storage.paper_summary(
                         self._paper_run_started_at
@@ -243,6 +247,77 @@ class Orchestrator:
                         f"pnl_usdc={summary['pnl_usdc']:+.4f} "
                         f"exit_reasons={summary['exit_reasons']}"
                     )
+
+    async def _notify_trade_event(self, event: TradeEvent) -> None:
+        """Broadcast a completed trade event when Telegram is available."""
+        tg = getattr(self, "tg", None)
+        if tg is None:
+            return
+        await tg.send(
+            f"{'📈' if event.action == 'OPEN' else '📉'} "
+            f"{event.action} {event.side} {event.slug}\n"
+            f"status {event.order_status or 'filled'}\n"
+            f"price {event.price:.4f}  ${event.size_usdc:.2f}\n"
+            f"pnl ${event.pnl:.2f}\n"
+            f"reason: {event.reason}"
+        )
+
+    async def _close_expired_paper_positions(self) -> list[TradeEvent]:
+        """Settle paper positions whose market can no longer be traded."""
+        if self.cfg.mode != "paper" or getattr(self, "paused", False):
+            return []
+
+        known_markets = getattr(self, "_known_markets", {})
+        latest_market_ids = getattr(self, "_latest_market_ids", None)
+        tracked_by_condition = {
+            market.condition_id: market for market in self.tracked_markets
+        }
+        events: list[TradeEvent] = []
+        now = time.time()
+
+        for condition_id, position in list(
+            self.risk.state.open_positions.items()
+        ):
+            market = (
+                tracked_by_condition.get(condition_id)
+                or known_markets.get(condition_id)
+            )
+            if market is None:
+                continue
+
+            end_ts = _parse_iso_ts(market.end_date)
+            reached_resolution = end_ts is not None and end_ts <= now
+            no_longer_tradable = (
+                latest_market_ids is not None
+                and condition_id not in latest_market_ids
+            )
+            if not reached_resolution and market.active and not no_longer_tradable:
+                continue
+
+            reason = (
+                "market expired"
+                if reached_resolution or not market.active
+                else "market no longer tradable"
+            )
+            # A mark is the only price available after the market leaves the
+            # order book. Preserve it for P/L; entry is a deterministic
+            # fallback for positions that have never received a mark.
+            settlement_price = (
+                position.mark_price
+                if position.mark_price > 0.0
+                else position.entry_price
+            )
+            event = await self.engine.expire_paper_position(
+                market, settlement_price, reason
+            )
+            if event is not None:
+                events.append(event)
+                self.tracked_markets = [
+                    tracked
+                    for tracked in self.tracked_markets
+                    if tracked.condition_id != condition_id
+                ]
+        return events
 
     async def _reconcile_real_positions(self) -> None:
         """Discover active BTC markets and rebuild risk from wallet holdings."""
@@ -313,6 +388,11 @@ class Orchestrator:
             if raise_on_error:
                 raise
             return
+        self._latest_market_ids = {m.condition_id for m in markets}
+        self._known_markets = {
+            **getattr(self, "_known_markets", {}),
+            **{m.condition_id: m for m in markets},
+        }
         # Filter by the intended resolution window and minimum volume. Gamma can
         # expose future BTC markets as active, so the upper bound is mandatory:
         # this strategy is calibrated for the current short-duration window.

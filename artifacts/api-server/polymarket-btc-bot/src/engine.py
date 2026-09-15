@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from math import isfinite
 from typing import Optional
 
 from .config import Config
@@ -203,4 +204,57 @@ class TradingEngine:
             action="CLOSE", side=closed.side, slug=market.slug,
             price=fill_price, size_usdc=closed.size_usdc, pnl=closed.pnl_usdc,
             reason=signal.reason, order_status=order_status,
+        )
+
+    async def expire_paper_position(
+        self,
+        market: MarketInfo,
+        settlement_price: float,
+        reason: str,
+    ) -> Optional[TradeEvent]:
+        """Settle one paper position without submitting an order.
+
+        Expiry is deliberately a paper-only operation. A real position must
+        continue through the normal sell/reconciliation paths so this helper
+        cannot accidentally turn a missing market into a real order.
+        """
+        if self.cfg.mode != "paper":
+            return None
+        if not isfinite(settlement_price) or not 0.0 <= settlement_price <= 1.0:
+            raise ValueError(
+                f"invalid paper settlement price: {settlement_price!r}"
+            )
+
+        pos = self.risk.state.open_positions.get(market.condition_id)
+        if pos is None:
+            return None
+
+        closed = self.risk.close_position(
+            market.condition_id, settlement_price,
+        )
+        if closed is None:
+            return None
+
+        await self.storage.log_trade(
+            mode="paper", condition_id=market.condition_id,
+            slug=market.slug, side=closed.side, action="CLOSE",
+            price=settlement_price, size_shares=closed.size_shares,
+            size_usdc=closed.size_usdc, pnl=closed.pnl_usdc,
+            order_status="settled",
+            raw={
+                "reason": reason,
+                "settlement_price": settlement_price,
+                "order_status": "settled",
+            },
+        )
+        self.paper_balance += closed.size_usdc + closed.pnl_usdc
+        log.info(
+            f"paper position SETTLED: {market.slug} {closed.side} "
+            f"price={settlement_price:.4f} pnl=${closed.pnl_usdc:.2f} "
+            f"reason={reason}"
+        )
+        return TradeEvent(
+            action="CLOSE", side=closed.side, slug=market.slug,
+            price=settlement_price, size_usdc=closed.size_usdc,
+            pnl=closed.pnl_usdc, reason=reason, order_status="settled",
         )
