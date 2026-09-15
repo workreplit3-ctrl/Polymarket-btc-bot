@@ -66,7 +66,12 @@ async def run() -> int:
     log = get_logger("launcher")
     log.info("starting Telegram bot 10 in %s mode", config.mode)
 
-    orchestrator = Orchestrator(config)
+    try:
+        orchestrator = Orchestrator(config)
+    except (RuntimeError, ValueError) as exc:
+        print(f"bot startup error: {exc}", file=sys.stderr, flush=True)
+        return 2
+
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:

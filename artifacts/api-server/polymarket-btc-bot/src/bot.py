@@ -34,6 +34,9 @@ log = get_logger("orchestrator")
 class Orchestrator:
     def __init__(self, cfg: Config):
         self.cfg = cfg
+        if cfg.mode == "real":
+            # Fail before starting feeds, Telegram, or the trading loop.
+            PolymarketClient.validate_real_mode()
         self.feed = BtcPriceAggregator(cfg.btc_feeds)
         self.poly = PolymarketClient(cfg.polymarket)
         self.risk = RiskManager(cfg.risk)
@@ -70,7 +73,7 @@ class Orchestrator:
     async def on_mode_changed(self) -> None:
         log.info(f"mode switched to {self.cfg.mode}")
         # No special action needed; engine reads self.cfg.mode at each call.
-        # In real mode, the first order will lazy-build the CLOB signer.
+        # Real-mode API compatibility is checked before Config.switch_mode().
 
     def set_paused(self, paused: bool) -> None:
         self.paused = paused

@@ -210,6 +210,10 @@ class TelegramBot:
             return
         new_mode = args[0].lower()
         try:
+            # Validate before changing cfg.mode so a failed activation leaves
+            # the bot safely in its previous mode.
+            if new_mode == "real":
+                self.orch.poly.validate_real_mode()
             self.cfg.switch_mode(new_mode)
             await self.orch.on_mode_changed()
             await update.effective_message.reply_text(f"✅ mode → {self.cfg.mode}")

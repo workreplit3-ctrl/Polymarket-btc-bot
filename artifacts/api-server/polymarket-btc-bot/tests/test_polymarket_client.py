@@ -3,11 +3,28 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import pytest
 from py_clob_client_v2 import OrderArgs, OrderType, Side
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.polymarket_client import PolymarketClient
+
+
+def test_real_mode_accepts_installed_order_interface() -> None:
+    PolymarketClient.validate_real_mode()
+
+
+def test_real_mode_rejects_legacy_create_order_signature(monkeypatch) -> None:
+    from py_clob_client_v2 import ClobClient
+
+    def legacy_create_order(self, token_id, price, size, side):
+        return None
+
+    monkeypatch.setattr(ClobClient, "create_and_post_order", legacy_create_order)
+
+    with pytest.raises(RuntimeError, match="order API is incompatible"):
+        PolymarketClient.validate_real_mode()
 
 
 class RecordingSigner:

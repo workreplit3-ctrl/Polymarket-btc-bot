@@ -172,7 +172,11 @@ async def run_real(args) -> int:
     log.info(f"starting bot in {cfg.mode} mode (config={args.config})")
 
     from src.bot import Orchestrator
-    orch = Orchestrator(cfg)
+    try:
+        orch = Orchestrator(cfg)
+    except (RuntimeError, ValueError) as e:
+        print(f"startup error: {e}", file=sys.stderr)
+        return 2
 
     # Handle SIGINT/SIGTERM cleanly
     loop = asyncio.get_running_loop()

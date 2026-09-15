@@ -11,6 +11,7 @@ In real mode we use the official `py-clob-client` to sign and submit orders.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -67,6 +68,52 @@ class OrderBook:
 
 class PolymarketClient:
     """Async wrapper around Gamma + CLOB HTTP endpoints."""
+
+    @staticmethod
+    def validate_real_mode() -> None:
+        """Validate the installed CLOB order API without making a network call.
+
+        Keep this check separate from construction so paper mode never needs
+        the real-trading dependency.  The wrapper intentionally uses the V2
+        call shape below; accepting an older client here would defer a
+        compatibility failure until the first real order.
+        """
+        try:
+            from py_clob_client_v2 import (  # type: ignore
+                ClobClient,
+                OrderArgs,
+                OrderType,
+                Side,
+            )
+        except (ImportError, AttributeError) as exc:
+            raise RuntimeError(
+                "Real mode cannot start: py-clob-client-v2 is missing or "
+                "does not export the required OrderArgs, OrderType, and Side "
+                "types. Install or upgrade py-clob-client-v2, then restart "
+                "the bot."
+            ) from exc
+
+        try:
+            inspect.signature(OrderArgs).bind(
+                token_id="token",
+                price=0.5,
+                size=1.0,
+                side=Side.BUY,
+            )
+            inspect.signature(ClobClient.create_and_post_order).bind(
+                object(),
+                object(),
+                order_type=OrderType.FOK,
+            )
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise RuntimeError(
+                "Real mode cannot start: the installed py-clob-client-v2 "
+                "order API is incompatible. Expected "
+                "OrderArgs(token_id=..., price=..., size=..., side=...) "
+                "and ClobClient.create_and_post_order(order_args, "
+                "order_type=...). Upgrade or reinstall py-clob-client-v2 "
+                "before enabling real mode."
+            ) from exc
 
     def __init__(self, cfg: PolymarketCfg):
         self.cfg = cfg
