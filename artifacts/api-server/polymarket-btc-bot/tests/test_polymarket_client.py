@@ -75,20 +75,189 @@ def test_real_order_uses_current_order_args_shape_without_network() -> None:
     assert order_type is OrderType.FOK
 
 
-def test_order_status_requires_actual_fill_amount() -> None:
+TERMINAL_ORDER_FIXTURES = (
+    pytest.param(
+        {"orderID": "accepted", "status": "open"},
+        "accepted",
+        0.0,
+        id="terminal-accepted",
+    ),
+    pytest.param(
+        {"orderID": "partial", "status": "matched", "size_matched": 4.0},
+        "partially_filled",
+        4.0,
+        id="terminal-partial-numeric-size",
+    ),
+    pytest.param(
+        {"orderID": "filled", "status": "matched", "filledSize": "10"},
+        "filled",
+        10.0,
+        id="terminal-filled-string-size",
+    ),
+    pytest.param(
+        {"orderID": "rejected", "status": "cancelled"},
+        "rejected",
+        0.0,
+        id="terminal-rejected",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_status", "expected_filled"),
+    TERMINAL_ORDER_FIXTURES,
+)
+def test_order_status_maps_terminal_response_fixtures(
+    payload: dict[str, Any],
+    expected_status: str,
+    expected_filled: float,
+) -> None:
     requested = 10.0
-    assert PolymarketClient._order_status(
-        {"status": "accepted", "orderID": "accepted"}, requested
-    ) == "accepted"
-    assert PolymarketClient._order_status(
-        {"status": "matched", "size_matched": "4"}, requested
-    ) == "partially_filled"
-    assert PolymarketClient._order_status(
-        {"status": "matched", "size_matched": "10"}, requested
-    ) == "filled"
-    assert PolymarketClient._order_status(
-        {"status": "rejected", "orderID": "rejected"}, requested
-    ) == "rejected"
+
+    assert PolymarketClient._order_status(payload, requested) == expected_status
+    assert PolymarketClient._filled_size(
+        payload, requested, expected_status
+    ) == pytest.approx(expected_filled)
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_status"),
+    (
+        pytest.param({"orderID": "missing-status"}, "accepted", id="no-status-no-fill"),
+        pytest.param(
+            {"orderID": "missing-status-partial", "sizeMatched": "2.5"},
+            "partially_filled",
+            id="no-status-string-partial-fill",
+        ),
+    ),
+)
+def test_order_status_handles_missing_status_field(
+    payload: dict[str, Any], expected_status: str
+) -> None:
+    assert PolymarketClient._order_status(payload, 10.0) == expected_status
+
+
+class ResponseSigner(RecordingSigner):
+    """Return deterministic create/get/cancel responses without network access."""
+
+    def __init__(
+        self, initial: dict[str, Any], polled: list[dict[str, Any]]
+    ) -> None:
+        super().__init__()
+        self.initial = initial
+        self.polled = list(polled)
+        self.get_order_calls: list[str] = []
+        self.cancelled: list[str] = []
+
+    def create_and_post_order(
+        self,
+        order_args: OrderArgs,
+        *,
+        order_type: OrderType,
+    ) -> dict[str, Any]:
+        self.calls.append((order_args, order_type))
+        return dict(self.initial)
+
+    def get_order(self, order_id: str) -> dict[str, Any]:
+        self.get_order_calls.append(order_id)
+        if self.polled:
+            return dict(self.polled.pop(0))
+        return {}
+
+    def cancel_order(self, order_id: str) -> None:
+        self.cancelled.append(order_id)
+
+
+POLLED_ORDER_FIXTURES = (
+    pytest.param(
+        {"orderID": "polled-accepted", "status": "open"},
+        [{"status": "open"}],
+        "accepted",
+        0.0,
+        id="polled-accepted",
+    ),
+    pytest.param(
+        {"orderID": "polled-partial", "status": "open"},
+        [{"status": "matched", "sizeMatched": "4"}],
+        "partially_filled",
+        4.0,
+        id="polled-partial-string-size",
+    ),
+    pytest.param(
+        {"orderID": "polled-filled", "status": "open"},
+        [{"status": "matched", "size_matched": 10.0}],
+        "filled",
+        10.0,
+        id="polled-filled-numeric-size",
+    ),
+    pytest.param(
+        {"orderID": "polled-rejected", "status": "open"},
+        [{"status": "cancelled"}],
+        "rejected",
+        0.0,
+        id="polled-rejected",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("initial", "polled", "expected_status", "expected_filled"),
+    POLLED_ORDER_FIXTURES,
+)
+def test_place_order_maps_polled_response_fixtures(
+    monkeypatch: pytest.MonkeyPatch,
+    initial: dict[str, Any],
+    polled: list[dict[str, Any]],
+    expected_status: str,
+    expected_filled: float,
+) -> None:
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("src.polymarket_client.asyncio.sleep", no_sleep)
+    client = object.__new__(PolymarketClient)
+    signer = ResponseSigner(initial, polled)
+    client._clob_signer = signer
+
+    receipt = asyncio.run(
+        client.place_order(
+            token_id="token-123",
+            side="BUY",
+            price=0.42,
+            size=10.0,
+        )
+    )
+
+    assert receipt["order_status"] == expected_status
+    assert receipt["filled_size"] == pytest.approx(expected_filled)
+    expected_poll_count = 3 if expected_status == "accepted" else 1
+    assert signer.get_order_calls == [initial["orderID"]] * expected_poll_count
+    if expected_status in {"accepted", "partially_filled"}:
+        assert signer.cancelled == [initial["orderID"]]
+    else:
+        assert signer.cancelled == []
+
+
+def test_place_order_cancels_remainder_after_partial_fill() -> None:
+    client = object.__new__(PolymarketClient)
+    signer = ResponseSigner(
+        {"orderID": "partial-order", "status": "matched", "sizeMatched": "4"},
+        [],
+    )
+    client._clob_signer = signer
+
+    receipt = asyncio.run(
+        client.place_order(
+            token_id="token-123",
+            side="BUY",
+            price=0.42,
+            size=10.0,
+        )
+    )
+
+    assert receipt["order_status"] == "partially_filled"
+    assert receipt["filled_size"] == 4.0
+    assert signer.cancelled == ["partial-order"]
 
 
 class FakeResponse:
