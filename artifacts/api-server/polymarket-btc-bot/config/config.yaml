@@ -101,8 +101,9 @@ strategy:
   max_token_price: 0.90
   # Conservative allowance for fees, spread, and exit slippage.
   round_trip_cost_buffer_pct: 0.02
-  # Keep false until a resolved-market calibration and paper run pass.
-  real_entries_enabled: false
+  # Enabled by explicit operator confirmation. Existing risk limits, FOK
+  # execution, one-position cap, and emergency pause remain active.
+  real_entries_enabled: true
   # X can only confirm a near-threshold BTC model edge; it cannot create
   # an entry by itself. Real entries remain disabled until calibration passes.
   x_confirming_edge_pct: 0.015
