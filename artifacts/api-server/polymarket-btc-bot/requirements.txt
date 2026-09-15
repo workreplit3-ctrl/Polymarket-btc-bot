@@ -2,6 +2,8 @@
 websockets>=12.0
 httpx>=0.27
 PyYAML>=6.0
+# X access is provided by the API server's Replit connector proxy; no
+# credential-bearing X client is installed in this Python process.
 
 # Telegram
 python-telegram-bot>=21.0

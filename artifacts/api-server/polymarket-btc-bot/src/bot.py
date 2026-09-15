@@ -27,6 +27,7 @@ from .risk import Position, RiskManager
 from .storage import Storage
 from .strategy import DivergenceStrategy, Signal, SignalAction
 from .telegram_bot import TelegramBot
+from .x_feed import XSignal, XSignalProvider
 
 log = get_logger("orchestrator")
 
@@ -42,6 +43,7 @@ class Orchestrator:
         self.risk = RiskManager(cfg.risk)
         self.storage = Storage(cfg.storage.sqlite_path)
         self.strategy = DivergenceStrategy(cfg.strategy, self.feed)
+        self.x_signal_provider = XSignalProvider(cfg.x)
         self.engine = TradingEngine(cfg, self.poly, self.risk, self.storage)
         self.tg = TelegramBot(cfg, self.risk, self.storage, self.engine, self)
 
@@ -180,6 +182,12 @@ class Orchestrator:
         current_side = pos.side if pos else None
 
         # 5. Run strategy
+        x_provider = getattr(self, "x_signal_provider", None)
+        x_signal = (
+            await x_provider.get_signal()
+            if x_provider is not None
+            else XSignal(reason="X provider not initialized")
+        )
         end_ts = _parse_iso_ts(market.end_date)
         signal = self.strategy.evaluate(
             up_book,
@@ -187,7 +195,11 @@ class Orchestrator:
             current_side,
             market_start_ts=market.start_ts,
             market_end_ts=end_ts,
+            x_signal=x_signal,
         )
+        if x_signal.valid or self.cfg.x.enabled:
+            signal.reason = f"{signal.reason}; X {x_signal.summary}"
+            log.info(f"X confirmation: {x_signal.summary}")
         minutes_to_close = (
             max(0.0, (end_ts - time.time()) / 60.0)
             if end_ts is not None else float("nan")

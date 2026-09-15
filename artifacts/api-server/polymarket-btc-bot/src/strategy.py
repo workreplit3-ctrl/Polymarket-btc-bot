@@ -18,6 +18,7 @@ from .btc_feed import BtcPriceAggregator
 from .config import StrategyCfg
 from .logger import get_logger
 from .polymarket_client import OrderBook
+from .x_feed import XSignal
 
 log = get_logger("strategy")
 
@@ -77,6 +78,7 @@ class DivergenceStrategy:
         current_position: Optional[str],  # "UP" | "DOWN" | None
         market_start_ts: Optional[float] = None,
         market_end_ts: Optional[float] = None,
+        x_signal: Optional[XSignal] = None,
     ) -> Signal:
         now = time.time()
 
@@ -265,29 +267,70 @@ class DivergenceStrategy:
 
         net_buy_edge_up = buy_edge_up - self.cfg.round_trip_cost_buffer_pct
         net_buy_edge_down = buy_edge_down - self.cfg.round_trip_cost_buffer_pct
-        if max(net_buy_edge_up, net_buy_edge_down) >= self.cfg.entry_edge_pct:
-            if net_buy_edge_up >= net_buy_edge_down:
+        x_signal = x_signal or XSignal(reason="X not supplied")
+        x_can_confirm = (
+            x_signal.valid
+            and x_signal.confidence >= self.cfg.x_min_confidence
+            and max(net_buy_edge_up, net_buy_edge_down)
+            >= self.cfg.x_min_base_entry_edge_pct
+        )
+        x_boost_up = (
+            self.cfg.x_confirming_edge_pct * x_signal.confidence
+            if x_can_confirm and x_signal.direction == "UP"
+            else 0.0
+        )
+        x_boost_down = (
+            self.cfg.x_confirming_edge_pct * x_signal.confidence
+            if x_can_confirm and x_signal.direction == "DOWN"
+            else 0.0
+        )
+        adjusted_edge_up = net_buy_edge_up + x_boost_up
+        adjusted_edge_down = net_buy_edge_down + x_boost_down
+        best_base_edge = max(net_buy_edge_up, net_buy_edge_down)
+        if (
+            x_can_confirm
+            and x_signal.direction in ("UP", "DOWN")
+            and x_signal.direction != (
+                "UP" if net_buy_edge_up >= net_buy_edge_down else "DOWN"
+            )
+            and x_signal.confidence >= self.cfg.x_min_confidence
+        ):
+            return Signal(
+                action=SignalAction.HOLD,
+                btc_price=consensus.mid,
+                btc_drift_pct=drift_pct,
+                our_prob_up=our_prob_up,
+                market_prob_up=market_prob_up,
+                edge=edge,
+                abs_edge=abs_edge,
+                reason=f"X confirmation conflicts with best side ({x_signal.summary})",
+                ts=now,
+            )
+        if max(adjusted_edge_up, adjusted_edge_down) >= self.cfg.entry_edge_pct:
+            if adjusted_edge_up >= adjusted_edge_down:
                 # Our prob of Up is higher than market → buy Up
                 return Signal(action=SignalAction.OPEN_UP, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
-                              market_prob_up=market_prob_up, edge=net_buy_edge_up,
-                              abs_edge=net_buy_edge_up,
+                               market_prob_up=market_prob_up, edge=adjusted_edge_up,
+                               abs_edge=adjusted_edge_up,
                               reason=(
-                                  f"net buy edge +{net_buy_edge_up:.4f} "
+                                   f"net buy edge +{adjusted_edge_up:.4f} "
                                   f"(gross={buy_edge_up:.4f}, "
-                                  f"cost buffer={self.cfg.round_trip_cost_buffer_pct:.4f}) "
+                                   f"cost buffer={self.cfg.round_trip_cost_buffer_pct:.4f}, "
+                                   f"X boost={x_boost_up:.4f}) "
                                   "→ buy UP"
                               ),
                               ts=now)
             else:
                 return Signal(action=SignalAction.OPEN_DOWN, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
-                              market_prob_up=market_prob_up, edge=-net_buy_edge_down,
-                              abs_edge=net_buy_edge_down,
+                               market_prob_up=market_prob_up, edge=-adjusted_edge_down,
+                               abs_edge=adjusted_edge_down,
                               reason=(
-                                  f"net buy edge +{net_buy_edge_down:.4f} "
+                                   f"net buy edge +{adjusted_edge_down:.4f} "
                                   f"(gross={buy_edge_down:.4f}, "
-                                  f"cost buffer={self.cfg.round_trip_cost_buffer_pct:.4f}) "
+                                   f"cost buffer={self.cfg.round_trip_cost_buffer_pct:.4f}, "
+                                   f"X boost={x_boost_down:.4f}) "
                                   "→ buy DOWN"
                               ),
                               ts=now)
@@ -297,7 +340,9 @@ class DivergenceStrategy:
                       market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                       reason=(
                           f"no actionable edge "
-                          f"(net UP={net_buy_edge_up:.4f}, "
-                          f"net DOWN={net_buy_edge_down:.4f}, "
-                          f"threshold={self.cfg.entry_edge_pct})"
+                           f"(net UP={adjusted_edge_up:.4f}, "
+                           f"net DOWN={adjusted_edge_down:.4f}, "
+                           f"base max={best_base_edge:.4f}, "
+                           f"threshold={self.cfg.entry_edge_pct}; "
+                           f"X={x_signal.direction}/{x_signal.confidence:.2f})"
                       ), ts=now)

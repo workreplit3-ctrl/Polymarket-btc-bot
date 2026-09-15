@@ -116,6 +116,9 @@ class StrategyCfg:
     max_token_price: float
     round_trip_cost_buffer_pct: float
     real_entries_enabled: bool
+    x_confirming_edge_pct: float
+    x_min_confidence: float
+    x_min_base_entry_edge_pct: float
 
 
 @dataclass
@@ -127,6 +130,19 @@ class RiskCfg:
     loss_cooldown_sec: int
     post_trade_cooldown_sec: int
     max_slippage_cents: float
+
+
+@dataclass
+class XCfg:
+    enabled: bool
+    usernames: List[str]
+    fresh_window_sec: int
+    refresh_interval_sec: int
+    request_timeout_sec: float
+    min_followers: int
+    confirming_edge_pct: float
+    min_confidence: float
+    min_base_entry_edge_pct: float
 
 
 @dataclass
@@ -150,6 +166,7 @@ class Config:
     polymarket: PolymarketCfg
     strategy: StrategyCfg
     risk: RiskCfg
+    x: XCfg
     storage: StorageCfg
     logging: LoggingCfg
     raw: Dict[str, Any] = field(default_factory=dict)
@@ -218,6 +235,9 @@ def _build(raw: Dict[str, Any]) -> Config:
             s.get("round_trip_cost_buffer_pct", 0.02)
         ),
         real_entries_enabled=bool(s.get("real_entries_enabled", False)),
+        x_confirming_edge_pct=float(s.get("x_confirming_edge_pct", 0.015)),
+        x_min_confidence=float(s.get("x_min_confidence", 0.55)),
+        x_min_base_entry_edge_pct=float(s.get("x_min_base_entry_edge_pct", 0.10)),
     )
 
     r = raw.get("risk", {})
@@ -229,6 +249,25 @@ def _build(raw: Dict[str, Any]) -> Config:
         loss_cooldown_sec=int(r.get("loss_cooldown_sec", 600)),
         post_trade_cooldown_sec=int(r.get("post_trade_cooldown_sec", 60)),
         max_slippage_cents=float(r.get("max_slippage_cents", 0.02)),
+    )
+
+    x_raw = raw.get("x", {})
+    x = XCfg(
+        enabled=bool(x_raw.get("enabled", False)),
+        usernames=[
+            str(username).strip().lstrip("@").lower()
+            for username in x_raw.get("usernames", [])
+            if str(username).strip()
+        ],
+        fresh_window_sec=int(x_raw.get("fresh_window_sec", 900)),
+        refresh_interval_sec=int(x_raw.get("refresh_interval_sec", 60)),
+        request_timeout_sec=float(x_raw.get("request_timeout_sec", 3.0)),
+        min_followers=int(x_raw.get("min_followers", 100_000)),
+        confirming_edge_pct=float(x_raw.get("confirming_edge_pct", 0.015)),
+        min_confidence=float(x_raw.get("min_confidence", 0.55)),
+        min_base_entry_edge_pct=float(
+            x_raw.get("min_base_entry_edge_pct", 0.10)
+        ),
     )
 
     st = raw.get("storage", {})
@@ -251,6 +290,7 @@ def _build(raw: Dict[str, Any]) -> Config:
         polymarket=poly,
         strategy=strat,
         risk=risk,
+        x=x,
         storage=storage,
         logging=logging_,
         raw=raw,
@@ -311,6 +351,9 @@ def empty_paper_config() -> Config:
             "max_token_price": 0.90,
             "round_trip_cost_buffer_pct": 0.02,
             "real_entries_enabled": False,
+            "x_confirming_edge_pct": 0.015,
+            "x_min_confidence": 0.55,
+            "x_min_base_entry_edge_pct": 0.10,
         },
         "risk": {
             "max_open_positions": 1,

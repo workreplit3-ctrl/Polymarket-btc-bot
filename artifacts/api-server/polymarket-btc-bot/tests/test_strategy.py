@@ -8,6 +8,7 @@ from src.btc_feed import BtcPriceAggregator
 from src.config import empty_paper_config
 from src.polymarket_client import OrderBook, OrderBookLevel
 from src.strategy import DivergenceStrategy, SignalAction
+from src.x_feed import XSignal
 
 
 def _book(token_id: str, bid: float = 0.48, ask: float = 0.50) -> OrderBook:
@@ -83,3 +84,59 @@ def test_strategy_refuses_entries_too_close_to_resolution():
 
     assert signal.action == SignalAction.HOLD
     assert "outside entry window" in signal.reason
+
+
+def test_x_can_confirm_only_a_near_threshold_model_edge():
+    cfg = empty_paper_config()
+    feed, start_ts, end_ts = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    without_x = strategy.evaluate(
+        _book("up", bid=0.36, ask=0.375),
+        _book("down", bid=0.58, ask=0.60),
+        current_position=None,
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+    )
+    with_x = strategy.evaluate(
+        _book("up", bid=0.36, ask=0.375),
+        _book("down", bid=0.58, ask=0.60),
+        current_position=None,
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+        x_signal=XSignal(
+            direction="UP",
+            confidence=1.0,
+            post_count=2,
+            valid=True,
+            reason="test confirmation",
+        ),
+    )
+
+    assert without_x.action == SignalAction.HOLD
+    assert with_x.action == SignalAction.OPEN_UP
+    assert "X boost" in with_x.reason
+
+
+def test_conflicting_fresh_x_signal_blocks_new_entry():
+    cfg = empty_paper_config()
+    feed, start_ts, end_ts = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up", bid=0.36, ask=0.375),
+        _book("down", bid=0.58, ask=0.60),
+        current_position=None,
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+        x_signal=XSignal(
+            direction="DOWN",
+            confidence=1.0,
+            post_count=2,
+            valid=True,
+            reason="test conflict",
+        ),
+    )
+
+    assert signal.action == SignalAction.HOLD
+    assert "conflicts with best side" in signal.reason

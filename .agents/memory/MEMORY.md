@@ -2,3 +2,4 @@
 - [Telegram polling exclusivity](telegram-polling-exclusivity.md) — one bot token can have only one long-polling instance at a time.
 - [CLOB order API](clob-order-api.md) — py-clob-client order submission requires an OrderArgs object, not legacy keyword arguments.
 - [Paper-run pause safety](paper-run-pause-safety.md) — paused.flag blocks the shared orchestrator loop, so paper validation must preserve and restore it explicitly.
+- [X connector credits](x-connector-credits.md) — X can return 402 credits depleted while auth is healthy; use neutral fallback instead of reauthorizing.
