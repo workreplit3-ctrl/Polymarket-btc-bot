@@ -1,14 +1,10 @@
-"""
-Strategy: divergence between BTC price drift and Polymarket implied probability.
+"""Value-based BTC Up/Down strategy.
 
-Idea:
-- BTC markets on Polymarket resolve to "Up" if BTC price at resolution > price at start.
-- The "Up" token price is essentially a market-implied probability of BTC going up over
-  the market window.
-- We compute our OWN implied probability from observed BTC drift over a reference window,
-  using a logistic mapping.
-- When |our_prob - market_prob| >= entry_edge, we open a position betting the gap closes.
-- Exit when the gap collapses below exit_edge, or hits adverse_edge_stop against us.
+The model estimates the probability that BTC finishes above the *specific
+market's* start price.  It uses the observed distance to that start price and
+the time remaining, rather than comparing BTC to an unrelated fixed lookback.
+The volatility-to-probability mapping is deliberately conservative and real
+entries remain disabled until it has been calibrated against resolved markets.
 """
 from __future__ import annotations
 
@@ -40,7 +36,7 @@ class SignalAction(str, Enum):
 class Signal:
     action: SignalAction
     btc_price: float
-    btc_drift_pct: float         # % drift over reference window
+    btc_drift_pct: float         # % distance from this market's start price
     our_prob_up: float           # 0..1
     market_prob_up: float        # 0..1 (from Up token mid)
     edge: float                  # our_prob_up - market_prob_up
@@ -54,21 +50,33 @@ class DivergenceStrategy:
         self.cfg = cfg
         self.feed = feed
 
-    def _logistic_prob_up(self, drift_pct: float) -> float:
-        """Map BTC drift % (e.g. +0.10 = +0.1%) to an implied P(Up) via logistic.
-
-        With default k=8, ±0.1% drift gives ~70/30 probability.
-        Formula: z = k * drift_pct  (drift_pct is in PERCENT, not fraction)
-                 P(Up) = 1 / (1 + exp(-z))
-        """
-        z = self.cfg.drift_to_prob_k * drift_pct
-        return 1.0 / (1.0 + math.exp(-z))
+    def _normal_prob_up(
+        self,
+        current_price: float,
+        market_start_price: float,
+        seconds_remaining: float,
+        volatility_per_sec: float,
+    ) -> float:
+        """Estimate P(BTC close > market start) with a conservative normal model."""
+        if seconds_remaining <= 0 or current_price <= 0:
+            return 0.5
+        sigma = (
+            current_price
+            * max(volatility_per_sec, self.cfg.min_volatility_per_sec)
+            * math.sqrt(seconds_remaining)
+        )
+        if sigma <= 0:
+            return 0.5
+        z = (current_price - market_start_price) / sigma
+        return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
     def evaluate(
         self,
         up_book: OrderBook,
         down_book: OrderBook,
         current_position: Optional[str],  # "UP" | "DOWN" | None
+        market_start_ts: Optional[float] = None,
+        market_end_ts: Optional[float] = None,
     ) -> Signal:
         now = time.time()
 
@@ -87,9 +95,14 @@ class DivergenceStrategy:
                 ts=now,
             )
 
-        # --- reference price -------------------------------------------
-        ref_price = self.feed.price_n_seconds_ago(self.cfg.reference_window_sec)
-        if ref_price is None or ref_price <= 0:
+        # A market-specific start price is required. Falling back to a generic
+        # 300-second lookback would recreate the original source of false edge.
+        market_start_price = (
+            self.feed.price_at(market_start_ts)
+            if market_start_ts is not None
+            else None
+        )
+        if market_start_price is None or market_start_price <= 0:
             return Signal(
                 action=SignalAction.SKIP_NO_HISTORY,
                 btc_price=consensus.mid,
@@ -98,12 +111,35 @@ class DivergenceStrategy:
                 market_prob_up=0.0,
                 edge=0.0,
                 abs_edge=0.0,
-                reason=f"need more history (window={self.cfg.reference_window_sec}s)",
+                reason="market start price is not available in BTC history",
                 ts=now,
             )
 
-        drift_pct = (consensus.mid - ref_price) / ref_price * 100.0
-        our_prob_up = self._logistic_prob_up(drift_pct)
+        seconds_remaining = (
+            market_end_ts - now
+            if market_end_ts is not None
+            else float("nan")
+        )
+        if not math.isfinite(seconds_remaining) or seconds_remaining <= 0:
+            return Signal(
+                action=SignalAction.SKIP_NO_HISTORY,
+                btc_price=consensus.mid,
+                btc_drift_pct=0.0,
+                our_prob_up=0.0,
+                market_prob_up=0.0,
+                edge=0.0,
+                abs_edge=0.0,
+                reason="market end time is unavailable or already passed",
+                ts=now,
+            )
+
+        drift_pct = (consensus.mid - market_start_price) / market_start_price * 100.0
+        our_prob_up = self._normal_prob_up(
+            consensus.mid,
+            market_start_price,
+            seconds_remaining,
+            self.feed.volatility_60s(),
+        )
 
         # --- market implied probability --------------------------------
         up_mid = up_book.mid()
@@ -182,21 +218,78 @@ class DivergenceStrategy:
                           reason="holding DOWN", ts=now)
 
         # --- entry logic (flat) ---------------------------------------
-        if max(buy_edge_up, buy_edge_down) >= self.cfg.entry_edge_pct:
-            if buy_edge_up >= buy_edge_down:
+        entry_window_ok = (
+            self.cfg.min_seconds_remaining_for_entry
+            <= seconds_remaining
+            <= self.cfg.max_seconds_remaining_for_entry
+        )
+        if not entry_window_ok:
+            return Signal(
+                action=SignalAction.HOLD,
+                btc_price=consensus.mid,
+                btc_drift_pct=drift_pct,
+                our_prob_up=our_prob_up,
+                market_prob_up=market_prob_up,
+                edge=edge,
+                abs_edge=abs_edge,
+                reason=(
+                    f"outside entry window "
+                    f"({seconds_remaining:.0f}s; allowed "
+                    f"{self.cfg.min_seconds_remaining_for_entry}-"
+                    f"{self.cfg.max_seconds_remaining_for_entry}s)"
+                ),
+                ts=now,
+            )
+
+        if (
+            up_ask.price < self.cfg.min_token_price
+            or up_ask.price > self.cfg.max_token_price
+            or down_ask.price < self.cfg.min_token_price
+            or down_ask.price > self.cfg.max_token_price
+        ):
+            return Signal(
+                action=SignalAction.HOLD,
+                btc_price=consensus.mid,
+                btc_drift_pct=drift_pct,
+                our_prob_up=our_prob_up,
+                market_prob_up=market_prob_up,
+                edge=edge,
+                abs_edge=abs_edge,
+                reason=(
+                    f"token price outside safe range "
+                    f"[{self.cfg.min_token_price:.2f},"
+                    f"{self.cfg.max_token_price:.2f}]"
+                ),
+                ts=now,
+            )
+
+        net_buy_edge_up = buy_edge_up - self.cfg.round_trip_cost_buffer_pct
+        net_buy_edge_down = buy_edge_down - self.cfg.round_trip_cost_buffer_pct
+        if max(net_buy_edge_up, net_buy_edge_down) >= self.cfg.entry_edge_pct:
+            if net_buy_edge_up >= net_buy_edge_down:
                 # Our prob of Up is higher than market → buy Up
                 return Signal(action=SignalAction.OPEN_UP, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
-                              market_prob_up=market_prob_up, edge=buy_edge_up,
-                              abs_edge=buy_edge_up,
-                              reason=f"buy edge +{buy_edge_up:.4f} after ask → buy UP",
+                              market_prob_up=market_prob_up, edge=net_buy_edge_up,
+                              abs_edge=net_buy_edge_up,
+                              reason=(
+                                  f"net buy edge +{net_buy_edge_up:.4f} "
+                                  f"(gross={buy_edge_up:.4f}, "
+                                  f"cost buffer={self.cfg.round_trip_cost_buffer_pct:.4f}) "
+                                  "→ buy UP"
+                              ),
                               ts=now)
             else:
                 return Signal(action=SignalAction.OPEN_DOWN, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
-                              market_prob_up=market_prob_up, edge=-buy_edge_down,
-                              abs_edge=buy_edge_down,
-                              reason=f"buy edge +{buy_edge_down:.4f} after ask → buy DOWN",
+                              market_prob_up=market_prob_up, edge=-net_buy_edge_down,
+                              abs_edge=net_buy_edge_down,
+                              reason=(
+                                  f"net buy edge +{net_buy_edge_down:.4f} "
+                                  f"(gross={buy_edge_down:.4f}, "
+                                  f"cost buffer={self.cfg.round_trip_cost_buffer_pct:.4f}) "
+                                  "→ buy DOWN"
+                              ),
                               ts=now)
 
         return Signal(action=SignalAction.HOLD, btc_price=consensus.mid,
@@ -204,6 +297,7 @@ class DivergenceStrategy:
                       market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                       reason=(
                           f"no actionable edge "
-                          f"(UP={buy_edge_up:.4f}, DOWN={buy_edge_down:.4f}, "
+                          f"(net UP={net_buy_edge_up:.4f}, "
+                          f"net DOWN={net_buy_edge_down:.4f}, "
                           f"threshold={self.cfg.entry_edge_pct})"
                       ), ts=now)

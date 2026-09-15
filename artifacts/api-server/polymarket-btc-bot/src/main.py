@@ -58,8 +58,8 @@ async def dry_run() -> int:
 
     log.info("modules imported & instantiated OK")
 
-    # Inject a fake BTC history into the feed so strategy can compute drift.
-    # Need to cover at least `reference_window_sec` (300s) into the past.
+    # Inject a fake BTC history into the feed so strategy can compute the
+    # market-start value and volatility.
     import time
     now = time.time()
     base = 60000.0
@@ -86,7 +86,11 @@ async def dry_run() -> int:
         outcome_up_token_id="11111", outcome_down_token_id="22222",
         outcomes=["Up", "Down"], volume=5000.0, active=True,
     )
-    # Market price of Up = 0.45; our logistic prob will be ~0.95 → big edge → OPEN_UP
+    # Use a market start timestamp from the injected history.
+    market.start_ts = now - 240
+    market_end_ts = now + 180
+    # Market price of Up = 0.45; the value model sees a strong positive
+    # distance to the market start and emits OPEN_UP.
     up_book = OrderBook(
         token_id="11111",
         bids=[OrderBookLevel(0.44, 1000), OrderBookLevel(0.43, 500)],
@@ -101,7 +105,13 @@ async def dry_run() -> int:
     )
 
     # Evaluate strategy flat → expect OPEN_UP
-    sig = strategy.evaluate(up_book, down_book, current_position=None)
+    sig = strategy.evaluate(
+        up_book,
+        down_book,
+        current_position=None,
+        market_start_ts=market.start_ts,
+        market_end_ts=market_end_ts,
+    )
     log.info(f"signal (flat): action={sig.action.value} edge={sig.edge:+.4f} "
              f"reason={sig.reason}")
     assert sig.action == SignalAction.OPEN_UP, f"expected OPEN_UP, got {sig.action}"
@@ -128,18 +138,30 @@ async def dry_run() -> int:
         asks=[OrderBookLevel(0.10, 1000)],
         ts=now,
     )
-    sig2 = strategy.evaluate(up_book2, down_book2, current_position="UP")
+    sig2 = strategy.evaluate(
+        up_book2,
+        down_book2,
+        current_position="UP",
+        market_start_ts=market.start_ts,
+        market_end_ts=market_end_ts,
+    )
     log.info(f"signal (with pos): action={sig2.action.value} edge={sig2.edge:+.4f}")
-    # With market_prob=0.91 and our_prob~0.95, edge ~ +0.04 (smaller than exit threshold? no, 0.04>0.015)
-    # Actually: our_prob=0.95, market=0.91, edge=+0.04 > exit_edge 0.015 → HOLD
-    # Let's force an exit by pushing market up to 0.95
+    # Force an exit by pushing the executable market price close to the model
+    # probability; the old dry-run used a 5% edge and incorrectly expected
+    # that to count as collapsed.
     up_book3 = OrderBook(
         token_id="11111",
-        bids=[OrderBookLevel(0.945, 1000)],
-        asks=[OrderBookLevel(0.955, 1000)],
+        bids=[OrderBookLevel(0.995, 1000)],
+        asks=[OrderBookLevel(0.999, 1000)],
         ts=now,
     )
-    sig3 = strategy.evaluate(up_book3, down_book2, current_position="UP")
+    sig3 = strategy.evaluate(
+        up_book3,
+        down_book2,
+        current_position="UP",
+        market_start_ts=market.start_ts,
+        market_end_ts=market_end_ts,
+    )
     log.info(f"signal (collapsed edge): action={sig3.action.value} edge={sig3.edge:+.4f}")
     assert sig3.action == SignalAction.EXIT, f"expected EXIT, got {sig3.action}"
     event3 = await engine.execute(sig3, market, up_book3, down_book2)

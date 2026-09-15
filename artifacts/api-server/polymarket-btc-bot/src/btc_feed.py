@@ -136,6 +136,12 @@ class BtcPriceAggregator:
     def price_n_seconds_ago(self, n: float) -> Optional[float]:
         return self._history.price_n_seconds_ago(time.time(), n)
 
+    def price_at(self, ts: float) -> Optional[float]:
+        """Return the latest observed consensus-feed price at or before ts."""
+        if ts <= 0:
+            return None
+        return self._history.price_at_or_before(ts)
+
     # ----- lifecycle -------------------------------------------------
     async def start(self) -> None:
         if self.cfg.binance.enabled:

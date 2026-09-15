@@ -301,10 +301,13 @@ class TelegramBot:
         r = self.cfg.risk
         msg = (
             f"*strategy*\n"
-            f"  tick: {s.tick_interval_sec}s  window: {s.reference_window_sec}s\n"
+            f"  tick: {s.tick_interval_sec}s  entry_window: "
+            f"{s.min_seconds_remaining_for_entry}-{s.max_seconds_remaining_for_entry}s\n"
             f"  entry_edge: {s.entry_edge_pct}  exit_edge: {s.exit_edge_pct}\n"
             f"  adverse_stop: {s.adverse_edge_stop_pct}\n"
             f"  max_vol_60s: {s.max_volatility_60s}\n"
+            f"  token_range: {s.min_token_price}-{s.max_token_price}\n"
+            f"  real_entries_enabled: {s.real_entries_enabled}\n"
             f"*risk*\n"
             f"  max_positions: {r.max_open_positions}\n"
             f"  per_trade: ${r.per_trade_size_usdc}\n"

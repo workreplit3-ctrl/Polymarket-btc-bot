@@ -104,13 +104,18 @@ class PolymarketCfg:
 @dataclass
 class StrategyCfg:
     tick_interval_sec: int
-    reference_window_sec: int
-    drift_to_prob_k: float
     entry_edge_pct: float
     exit_edge_pct: float
     adverse_edge_stop_pct: float
     prefer_side: str
     max_volatility_60s: float
+    min_volatility_per_sec: float
+    min_seconds_remaining_for_entry: int
+    max_seconds_remaining_for_entry: int
+    min_token_price: float
+    max_token_price: float
+    round_trip_cost_buffer_pct: float
+    real_entries_enabled: bool
 
 
 @dataclass
@@ -195,21 +200,32 @@ def _build(raw: Dict[str, Any]) -> Config:
     s = raw.get("strategy", {})
     strat = StrategyCfg(
         tick_interval_sec=int(s.get("tick_interval_sec", 5)),
-        reference_window_sec=int(s.get("reference_window_sec", 300)),
-        drift_to_prob_k=float(s.get("drift_to_prob_k", 8.0)),
-        entry_edge_pct=float(s.get("entry_edge_pct", 0.06)),
+        entry_edge_pct=float(s.get("entry_edge_pct", 0.12)),
         exit_edge_pct=float(s.get("exit_edge_pct", 0.015)),
         adverse_edge_stop_pct=float(s.get("adverse_edge_stop_pct", 0.10)),
         prefer_side=s.get("prefer_side", "UP"),
         max_volatility_60s=float(s.get("max_volatility_60s", 0.0040)),
+        min_volatility_per_sec=float(s.get("min_volatility_per_sec", 0.00001)),
+        min_seconds_remaining_for_entry=int(
+            s.get("min_seconds_remaining_for_entry", 150)
+        ),
+        max_seconds_remaining_for_entry=int(
+            s.get("max_seconds_remaining_for_entry", 270)
+        ),
+        min_token_price=float(s.get("min_token_price", 0.10)),
+        max_token_price=float(s.get("max_token_price", 0.90)),
+        round_trip_cost_buffer_pct=float(
+            s.get("round_trip_cost_buffer_pct", 0.02)
+        ),
+        real_entries_enabled=bool(s.get("real_entries_enabled", False)),
     )
 
     r = raw.get("risk", {})
     risk = RiskCfg(
-        max_open_positions=int(r.get("max_open_positions", 3)),
-        per_trade_size_usdc=float(r.get("per_trade_size_usdc", 10.0)),
-        daily_loss_limit_usdc=float(r.get("daily_loss_limit_usdc", 30.0)),
-        max_total_exposure_usdc=float(r.get("max_total_exposure_usdc", 50.0)),
+        max_open_positions=int(r.get("max_open_positions", 1)),
+        per_trade_size_usdc=float(r.get("per_trade_size_usdc", 1.0)),
+        daily_loss_limit_usdc=float(r.get("daily_loss_limit_usdc", 2.0)),
+        max_total_exposure_usdc=float(r.get("max_total_exposure_usdc", 1.0)),
         loss_cooldown_sec=int(r.get("loss_cooldown_sec", 600)),
         post_trade_cooldown_sec=int(r.get("post_trade_cooldown_sec", 60)),
         max_slippage_cents=float(r.get("max_slippage_cents", 0.02)),
@@ -283,19 +299,24 @@ def empty_paper_config() -> Config:
         },
         "strategy": {
             "tick_interval_sec": 5,
-            "reference_window_sec": 300,
-            "drift_to_prob_k": 8.0,
-            "entry_edge_pct": 0.06,
+            "entry_edge_pct": 0.12,
             "exit_edge_pct": 0.015,
             "adverse_edge_stop_pct": 0.10,
             "prefer_side": "UP",
             "max_volatility_60s": 0.0040,
+            "min_volatility_per_sec": 0.00001,
+            "min_seconds_remaining_for_entry": 150,
+            "max_seconds_remaining_for_entry": 270,
+            "min_token_price": 0.10,
+            "max_token_price": 0.90,
+            "round_trip_cost_buffer_pct": 0.02,
+            "real_entries_enabled": False,
         },
         "risk": {
-            "max_open_positions": 3,
-            "per_trade_size_usdc": 10.0,
-            "daily_loss_limit_usdc": 30.0,
-            "max_total_exposure_usdc": 50.0,
+            "max_open_positions": 1,
+            "per_trade_size_usdc": 1.0,
+            "daily_loss_limit_usdc": 2.0,
+            "max_total_exposure_usdc": 1.0,
             "loss_cooldown_sec": 600,
             "post_trade_cooldown_sec": 60,
             "max_slippage_cents": 0.02,

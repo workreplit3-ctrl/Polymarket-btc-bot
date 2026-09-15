@@ -56,6 +56,8 @@ class Orchestrator:
         # Refresh markets every 5 minutes
         self._market_refresh_interval = 300
         self._paper_run_started_at = time.time()
+        # One entry per condition is enforced from persisted trade history,
+        # not only from this process's in-memory position map.
         # Keep the last successful market metadata snapshot so a position can
         # still be settled after Gamma removes its market from the active list.
         self._known_markets: dict[str, MarketInfo] = {}
@@ -178,8 +180,14 @@ class Orchestrator:
         current_side = pos.side if pos else None
 
         # 5. Run strategy
-        signal = self.strategy.evaluate(up_book, down_book, current_side)
         end_ts = _parse_iso_ts(market.end_date)
+        signal = self.strategy.evaluate(
+            up_book,
+            down_book,
+            current_side,
+            market_start_ts=market.start_ts,
+            market_end_ts=end_ts,
+        )
         minutes_to_close = (
             max(0.0, (end_ts - time.time()) / 60.0)
             if end_ts is not None else float("nan")
@@ -234,6 +242,25 @@ class Orchestrator:
                 "completed successfully"
             )
             return
+        if (
+            self.cfg.mode == "real"
+            and not self.cfg.strategy.real_entries_enabled
+            and signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN)
+        ):
+            log.warning(
+                "real entry blocked by strategy safety gate; "
+                "enable only after calibrated paper validation"
+            )
+            return
+        if signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN):
+            if await self.storage.has_entry_for_market(
+                market.condition_id, mode=self.cfg.mode
+            ):
+                log.info(
+                    "entry blocked: this market already has a persisted "
+                    f"{self.cfg.mode} entry ({market.slug})"
+                )
+                return
         if signal.action in (SignalAction.OPEN_UP, SignalAction.OPEN_DOWN, SignalAction.EXIT):
             event = await self.engine.execute(signal, market, up_book, down_book)
             if event and event.action in ("OPEN", "CLOSE"):

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -37,6 +38,9 @@ class MarketInfo:
     outcomes: List[str]
     volume: float
     active: bool
+    # Unix timestamp for the beginning of the market window. Short BTC
+    # slugs contain the slot timestamp; older/fake market records may omit it.
+    start_ts: float = 0.0
 
 
 @dataclass
@@ -266,16 +270,25 @@ class PolymarketClient:
         # still checks the actual best ask depth and slippage before ordering.
         market_activity = max(volume_values + liquidity_values + [0.0])
 
+        slug = m.get("slug", "")
+        start_ts = float(m.get("startTs") or m.get("start_ts") or 0.0)
+        if start_ts <= 0:
+            # Current BTC short-window slugs end in "-5m-<unix slot>".
+            match = re.search(r"-(?:5m|300s)-(\d+)$", slug)
+            if match:
+                start_ts = float(match.group(1))
+
         return MarketInfo(
             condition_id=m.get("conditionId") or m.get("condition_id") or "",
             question=m.get("question", ""),
-            slug=m.get("slug", ""),
+            slug=slug,
             end_date=m.get("endDate") or m.get("end_date_iso") or "",
             outcome_up_token_id=tokens[up_idx],
             outcome_down_token_id=tokens[down_idx],
             outcomes=outcomes,
             volume=market_activity,
             active=bool(m.get("active", True)),
+            start_ts=start_ts,
         )
 
     # ----- Data API: confirmed wallet positions --------------------

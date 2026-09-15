@@ -78,17 +78,8 @@ strategy:
   # How often to re-evaluate the signal (seconds)
   tick_interval_sec: 5
 
-  # Reference window for BTC price drift: compare current price to price
-  # N seconds ago, then derive an "implied" market probability from drift.
-  reference_window_sec: 300   # 5 minutes
-
-  # Map BTC drift to an implied probability that "Up" wins, using a logistic
-  # function:  P(Up) = 1 / (1 + exp(-k * drift_pct))
-  drift_to_prob_k: 8.0
-
-  # Entry threshold: open a position when |implied_prob - market_prob| >= this
-  # "Balanced" preset.
-  entry_edge_pct: 0.06        # 6 percentage points
+  # Entry threshold after ask price and conservative transaction-cost buffer.
+  entry_edge_pct: 0.12        # 12 percentage points
   # Exit threshold: close when edge collapses below this
   exit_edge_pct: 0.015        # 1.5 percentage points
   # Hard stop on edge against us
@@ -100,18 +91,30 @@ strategy:
   # If BTC volatility (rolling stdev of returns over 60s) exceeds this,
   # refuse new entries (market is too choppy).
   max_volatility_60s: 0.0040  # 0.4% per minute stdev
+  # Floor used by the value model when the feed is unusually quiet.
+  min_volatility_per_sec: 0.00001
+  # Only enter in the middle of the market window; exits are not restricted.
+  min_seconds_remaining_for_entry: 150
+  max_seconds_remaining_for_entry: 270
+  # Avoid extreme-priced tokens until the value model is calibrated.
+  min_token_price: 0.10
+  max_token_price: 0.90
+  # Conservative allowance for fees, spread, and exit slippage.
+  round_trip_cost_buffer_pct: 0.02
+  # Keep false until a resolved-market calibration and paper run pass.
+  real_entries_enabled: false
 
 # --- Risk control ---------------------------------------------------
 # You said you'll tune these yourself — these are sane conservative defaults.
 risk:
   # Max simultaneously open positions
-  max_open_positions: 3
+  max_open_positions: 1
   # Per-trade size in USDC (paper or real)
-  per_trade_size_usdc: 4.0
+  per_trade_size_usdc: 1.0
   # Hard daily loss limit in USDC; bot halts after hitting it
-  daily_loss_limit_usdc: 30.0
+  daily_loss_limit_usdc: 2.0
   # Max total exposure in USDC across all open positions
-  max_total_exposure_usdc: 50.0
+  max_total_exposure_usdc: 1.0
   # Cooldown after a losing trade (seconds)
   loss_cooldown_sec: 600
   # Cooldown after any exit (seconds) — prevents thrash

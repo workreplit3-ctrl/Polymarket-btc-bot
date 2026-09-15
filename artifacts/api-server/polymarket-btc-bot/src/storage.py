@@ -182,6 +182,24 @@ class Storage:
         finally:
             c.close()
 
+    async def has_entry_for_market(self, condition_id: str, mode: str) -> bool:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, self._has_entry_for_market_sync, condition_id, mode
+        )
+
+    def _has_entry_for_market_sync(self, condition_id: str, mode: str) -> bool:
+        c = self._conn()
+        try:
+            row = c.execute(
+                "SELECT 1 FROM trades WHERE condition_id=? AND mode=? "
+                "AND action='OPEN' LIMIT 1",
+                (condition_id, mode),
+            ).fetchone()
+            return row is not None
+        finally:
+            c.close()
+
     async def today_pnl(self) -> float:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._today_pnl_sync)

@@ -51,7 +51,7 @@ def test_paper_tick_persists_actionable_edges_for_both_sides(tmp_path):
             return up_book if token_id == "up-token" else down_book
 
     class FakeStrategy:
-        def evaluate(self, up, down, current_side):
+        def evaluate(self, up, down, current_side, **kwargs):
             return Signal(
                 action=SignalAction.HOLD,
                 btc_price=60000.0,
