@@ -15,6 +15,7 @@ import inspect
 import re
 import time
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -102,6 +103,7 @@ class PolymarketClient:
         try:
             from py_clob_client_v2 import (  # type: ignore
                 ClobClient,
+                MarketOrderArgs,
                 OrderArgs,
                 OrderType,
                 Side,
@@ -109,7 +111,7 @@ class PolymarketClient:
         except (ImportError, AttributeError) as exc:
             raise RuntimeError(
                 "Real mode cannot start: py-clob-client-v2 is missing or "
-                "does not export the required OrderArgs, OrderType, and Side "
+                "does not export the required order argument, order type, and side "
                 "types. Install or upgrade py-clob-client-v2, then restart "
                 "the bot."
             ) from exc
@@ -121,7 +123,19 @@ class PolymarketClient:
                 size=1.0,
                 side=Side.BUY,
             )
+            inspect.signature(MarketOrderArgs).bind(
+                token_id="token",
+                amount=1.0,
+                price=0.5,
+                side=Side.BUY,
+                order_type=OrderType.FOK,
+            )
             inspect.signature(ClobClient.create_and_post_order).bind(
+                object(),
+                object(),
+                order_type=OrderType.FOK,
+            )
+            inspect.signature(ClobClient.create_and_post_market_order).bind(
                 object(),
                 object(),
                 order_type=OrderType.FOK,
@@ -129,11 +143,9 @@ class PolymarketClient:
         except (TypeError, ValueError, AttributeError) as exc:
             raise RuntimeError(
                 "Real mode cannot start: the installed py-clob-client-v2 "
-                "order API is incompatible. Expected "
-                "OrderArgs(token_id=..., price=..., size=..., side=...) "
-                "and ClobClient.create_and_post_order(order_args, "
-                "order_type=...). Upgrade or reinstall py-clob-client-v2 "
-                "before enabling real mode."
+                "order API is incompatible. Expected both limit and market "
+                "order methods with FOK support. Upgrade or reinstall "
+                "py-clob-client-v2 before enabling real mode."
             ) from exc
 
     def real_mode_readiness(self) -> RealModeReadiness:
@@ -527,30 +539,62 @@ class PolymarketClient:
             self._clob_signer = client
 
         from py_clob_client_v2 import (  # type: ignore
+            MarketOrderArgs,
             OrderArgs,
             OrderType,
             Side,
         )
         side_const = Side.BUY if side.upper() == "BUY" else Side.SELL
 
-        order_args = OrderArgs(
-            token_id=token_id,
-            price=price,
-            size=size,
-            side=side_const,
-        )
+        if side.upper() == "BUY":
+            # Polymarket validates BUY maker amounts as USDC with max two
+            # decimals, while the taker share amount may use four. The
+            # regular limit-order builder can produce a maker amount such as
+            # 3.9988 from a $4 target, which the API rejects. Use the
+            # market-order API with the current ask as its explicit limit
+            # price; its builder emits the required 2/4-decimal amounts.
+            buy_amount = float(
+                (Decimal(str(price)) * Decimal(str(size))).quantize(
+                    Decimal("0.01"), rounding=ROUND_DOWN
+                )
+            )
+            if buy_amount <= 0:
+                raise ValueError("BUY amount rounds down to zero USDC")
+            order_args = MarketOrderArgs(
+                token_id=token_id,
+                amount=buy_amount,
+                price=price,
+                side=side_const,
+                order_type=OrderType.FOK,
+            )
+        else:
+            order_args = OrderArgs(
+                token_id=token_id,
+                price=price,
+                size=size,
+                side=side_const,
+            )
 
         # Run the blocking CLOB client call in a thread
         loop = asyncio.get_running_loop()
         # FOK prevents a real order from sitting live after this call returns.
         # The engine records a position only after the CLOB confirms a match.
-        order = await loop.run_in_executor(
-            None,
-            lambda: self._clob_signer.create_and_post_order(
-                order_args,
-                order_type=OrderType.FOK,
-            ),
-        )
+        if side.upper() == "BUY":
+            order = await loop.run_in_executor(
+                None,
+                lambda: self._clob_signer.create_and_post_market_order(
+                    order_args,
+                    order_type=OrderType.FOK,
+                ),
+            )
+        else:
+            order = await loop.run_in_executor(
+                None,
+                lambda: self._clob_signer.create_and_post_order(
+                    order_args,
+                    order_type=OrderType.FOK,
+                ),
+            )
         receipt = order if isinstance(order, dict) else {"raw": str(order)}
         order_id = str(receipt.get("orderID") or receipt.get("id") or "")
 

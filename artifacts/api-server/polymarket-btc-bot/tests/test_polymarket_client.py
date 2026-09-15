@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from py_clob_client_v2 import OrderArgs, OrderType, Side
+from py_clob_client_v2 import MarketOrderArgs, OrderArgs, OrderType, Side
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -60,6 +60,7 @@ class RecordingSigner:
 
     def __init__(self) -> None:
         self.calls: list[tuple[OrderArgs, OrderType]] = []
+        self.market_calls: list[tuple[MarketOrderArgs, OrderType]] = []
 
     def create_and_post_order(
         self,
@@ -74,9 +75,22 @@ class RecordingSigner:
             "size_matched": str(order_args.size),
         }
 
+    def create_and_post_market_order(
+        self,
+        order_args: MarketOrderArgs,
+        *,
+        order_type: OrderType,
+    ) -> dict[str, Any]:
+        self.market_calls.append((order_args, order_type))
+        return {
+            "orderID": "test-market-order",
+            "status": "matched",
+            "size_matched": str(order_args.amount / order_args.price),
+        }
 
-def test_real_order_uses_current_order_args_shape_without_network() -> None:
-    """The wrapper must not fall back to legacy keyword order arguments."""
+
+def test_real_buy_order_uses_market_amount_precision_without_network() -> None:
+    """BUY maker amount must be cents-precise while staying FOK."""
     client = object.__new__(PolymarketClient)
     signer = RecordingSigner()
     client._clob_signer = signer
@@ -91,13 +105,41 @@ def test_real_order_uses_current_order_args_shape_without_network() -> None:
     )
 
     assert receipt["status"] == "matched"
+    assert signer.calls == []
+    assert len(signer.market_calls) == 1
+    order_args, order_type = signer.market_calls[0]
+    assert isinstance(order_args, MarketOrderArgs)
+    assert order_args.token_id == "token-123"
+    assert order_args.price == 0.42
+    assert order_args.amount == 1.05
+    assert order_args.side is Side.BUY
+    assert order_type is OrderType.FOK
+
+
+def test_real_sell_order_keeps_limit_order_shape_without_network() -> None:
+    """SELL orders continue using the regular limit-order API."""
+    client = object.__new__(PolymarketClient)
+    signer = RecordingSigner()
+    client._clob_signer = signer
+
+    receipt = asyncio.run(
+        client.place_order(
+            token_id="token-123",
+            side="SELL",
+            price=0.42,
+            size=2.5,
+        )
+    )
+
+    assert receipt["status"] == "matched"
     assert len(signer.calls) == 1
+    assert signer.market_calls == []
     order_args, order_type = signer.calls[0]
     assert isinstance(order_args, OrderArgs)
     assert order_args.token_id == "token-123"
     assert order_args.price == 0.42
     assert order_args.size == 2.5
-    assert order_args.side is Side.BUY
+    assert order_args.side is Side.SELL
     assert order_type is OrderType.FOK
 
 
@@ -182,6 +224,15 @@ class ResponseSigner(RecordingSigner):
         order_type: OrderType,
     ) -> dict[str, Any]:
         self.calls.append((order_args, order_type))
+        return dict(self.initial)
+
+    def create_and_post_market_order(
+        self,
+        order_args: MarketOrderArgs,
+        *,
+        order_type: OrderType,
+    ) -> dict[str, Any]:
+        self.market_calls.append((order_args, order_type))
         return dict(self.initial)
 
     def get_order(self, order_id: str) -> dict[str, Any]:
