@@ -6,6 +6,9 @@ PyYAML>=6.0
 # Telegram
 python-telegram-bot>=21.0
 
+# Regression validation (no wallet or network access)
+pytest>=8.0
+
 # Polymarket real-mode trading (only needed for `mode: real`)
 # Install separately if you actually want to place real orders:
 #   pip install py-clob-client-v2
