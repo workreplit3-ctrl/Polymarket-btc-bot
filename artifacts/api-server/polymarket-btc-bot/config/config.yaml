@@ -79,7 +79,7 @@ strategy:
   tick_interval_sec: 5
 
   # Entry threshold after ask price and conservative transaction-cost buffer.
-  entry_edge_pct: 0.12        # 12 percentage points
+  entry_edge_pct: 0.084       # 8.4 percentage points (30% lower entry threshold)
   # Exit threshold: close when edge collapses below this
   exit_edge_pct: 0.015        # 1.5 percentage points
   # Hard stop on edge against us
@@ -108,7 +108,7 @@ strategy:
   # an entry by itself.
   x_confirming_edge_pct: 0.015
   x_min_confidence: 0.55
-  x_min_base_entry_edge_pct: 0.10
+  x_min_base_entry_edge_pct: 0.07
 
 # --- X confirmation ---------------------------------------------------
 # Read-only, allowlisted and fresh-only. Authors must pass verification and
@@ -128,7 +128,7 @@ x:
   min_followers: 100000
   confirming_edge_pct: 0.015
   min_confidence: 0.55
-  min_base_entry_edge_pct: 0.10
+  min_base_entry_edge_pct: 0.07
 
 # --- Risk control ---------------------------------------------------
 # You said you'll tune these yourself — these are sane conservative defaults.
