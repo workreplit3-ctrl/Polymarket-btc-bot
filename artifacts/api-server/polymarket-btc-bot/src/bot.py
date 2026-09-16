@@ -55,6 +55,8 @@ class Orchestrator:
         self.reconciliation_error: Optional[str] = None
         self._shutdown = asyncio.Event()
         self._market_refresh_ts: float = 0.0
+        self._real_reconcile_ts: float = 0.0
+        self._real_reconcile_interval = 30
         # Refresh markets every 5 minutes, and immediately when the selected
         # market expires. Gamma can leave a just-resolved market in the cached
         # list long enough for its CLOB books to start returning 404.
@@ -74,9 +76,11 @@ class Orchestrator:
         if self.cfg.mode == "real":
             try:
                 await self._reconcile_real_positions()
+                self._real_reconcile_ts = time.time()
             except Exception as exc:
                 self._real_entries_paused = True
                 self.reconciliation_error = str(exc)
+                self._real_reconcile_ts = time.time()
                 log.exception(
                     "real position reconciliation failed; new real entries "
                     "will remain paused"
@@ -168,6 +172,27 @@ class Orchestrator:
         if not self.tracked_markets:
             return
 
+        # Resolution removes a market from Gamma's active list, so it cannot
+        # be used as the sole trigger for reconciliation. Periodically query
+        # the wallet as well; this clears positions settled by Redeem or Loss
+        # even when the bot has already moved on to a newer market.
+        if (
+            self.cfg.mode == "real"
+            and time.time() - self._real_reconcile_ts
+            >= self._real_reconcile_interval
+        ):
+            self._real_reconcile_ts = time.time()
+            try:
+                await self._reconcile_real_positions()
+            except Exception as exc:
+                self._real_entries_paused = True
+                self.reconciliation_error = str(exc)
+                log.exception(
+                    "periodic real position reconciliation failed; "
+                    "new real entries remain paused"
+                )
+                return
+
         # 2. Pick the nearest-to-resolution market that still has time left
         market = self._pick_market()
         if market is None:
@@ -189,6 +214,7 @@ class Orchestrator:
                 self._market_refresh_ts = time.time()
                 if self.cfg.mode == "real":
                     await self._reconcile_real_positions()
+                    self._real_reconcile_ts = time.time()
                     self._market_refresh_ts = time.time()
             except Exception as exc:
                 if self.cfg.mode == "real":
