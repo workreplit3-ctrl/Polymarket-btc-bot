@@ -55,7 +55,9 @@ class Orchestrator:
         self.reconciliation_error: Optional[str] = None
         self._shutdown = asyncio.Event()
         self._market_refresh_ts: float = 0.0
-        # Refresh markets every 5 minutes
+        # Refresh markets every 5 minutes, and immediately when the selected
+        # market expires. Gamma can leave a just-resolved market in the cached
+        # list long enough for its CLOB books to start returning 404.
         self._market_refresh_interval = 300
         self._paper_run_started_at = time.time()
         # One entry per condition is enforced from persisted trade history,
@@ -154,7 +156,7 @@ class Orchestrator:
         now = time.time()
         if now - self._market_refresh_ts > self._market_refresh_interval or not self.tracked_markets:
             await self._refresh_markets()
-            self._market_refresh_ts = now
+            self._market_refresh_ts = time.time()
 
         # Preserve the pause contract for expiry closes too: a pause blocks
         # execution, including paper settlement, until the operator resumes.
@@ -170,6 +172,45 @@ class Orchestrator:
         market = self._pick_market()
         if market is None:
             return
+
+        # A market can expire between the five-minute refreshes above. Do not
+        # keep polling its dead order-book for the remainder of that interval.
+        # In real mode this is also the point at which a resolved/redeemed
+        # position must be removed from risk state before another entry can be
+        # considered.
+        end_ts = _parse_iso_ts(market.end_date)
+        if end_ts is None or end_ts <= time.time():
+            log.info(
+                f"selected market {market.slug} is stale; refreshing active "
+                "markets before continuing"
+            )
+            try:
+                await self._refresh_markets(raise_on_error=self.cfg.mode == "real")
+                self._market_refresh_ts = time.time()
+                if self.cfg.mode == "real":
+                    await self._reconcile_real_positions()
+                    self._market_refresh_ts = time.time()
+            except Exception as exc:
+                if self.cfg.mode == "real":
+                    self._real_entries_paused = True
+                    self.reconciliation_error = str(exc)
+                    log.exception(
+                        "real position reconciliation failed after market "
+                        "resolution; new real entries remain paused"
+                    )
+                else:
+                    log.warning(f"stale market refresh failed: {exc}")
+                return
+            market = self._pick_market()
+            if market is None:
+                return
+            end_ts = _parse_iso_ts(market.end_date)
+            if end_ts is None or end_ts <= time.time():
+                log.warning(
+                    "active market refresh still returned no live market; "
+                    "skipping this tick"
+                )
+                return
 
         # 3. Fetch orderbooks for both Up and Down tokens
         up_book, down_book = await asyncio.gather(
@@ -188,7 +229,6 @@ class Orchestrator:
             if x_provider is not None
             else XSignal(reason="X provider not initialized")
         )
-        end_ts = _parse_iso_ts(market.end_date)
         signal = self.strategy.evaluate(
             up_book,
             down_book,
@@ -361,15 +401,20 @@ class Orchestrator:
     async def _reconcile_real_positions(self) -> None:
         """Discover active BTC markets and rebuild risk from wallet holdings."""
         await self._refresh_markets(raise_on_error=True)
-        holdings = await self.poly.get_confirmed_token_holdings(
-            self.tracked_markets
-        )
-        markets_by_condition = {
-            market.condition_id: market for market in self.tracked_markets
+        # Keep recently observed markets in the lookup set. A resolved market
+        # may still have unredeemed shares; dropping it from the query would
+        # incorrectly make risk appear flat and allow a second real entry.
+        market_catalog = {
+            **getattr(self, "_known_markets", {}),
+            **{m.condition_id: m for m in self.tracked_markets},
         }
+        holdings = await self.poly.get_confirmed_token_holdings(
+            list(market_catalog.values())
+        )
+        markets_by_condition = market_catalog
         markets_by_token = {
             token_id: market
-            for market in self.tracked_markets
+            for market in market_catalog.values()
             for token_id in (
                 market.outcome_up_token_id,
                 market.outcome_down_token_id,
@@ -412,6 +457,7 @@ class Orchestrator:
             )
         self.risk.replace_open_positions(positions)
         self._real_entries_paused = False
+        self.reconciliation_error = None
         log.info(
             f"real position reconciliation succeeded: "
             f"{len(positions)} confirmed position(s)"

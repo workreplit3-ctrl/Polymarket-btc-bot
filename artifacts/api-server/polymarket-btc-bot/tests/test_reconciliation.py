@@ -30,6 +30,7 @@ def _orchestrator_with_market(holdings):
     orch = object.__new__(Orchestrator)
     orch.cfg = cfg
     orch.tracked_markets = []
+    orch._known_markets = {}
     orch.risk = RiskManager(cfg.risk)
     orch._real_entries_paused = True
 
@@ -104,3 +105,22 @@ def test_failed_reconciliation_does_not_replace_risk_state() -> None:
 
     assert orch.risk.state.open_positions["condition-1"] is original
     assert orch._real_entries_paused is True
+
+
+def test_successful_reconciliation_clears_redeemed_position() -> None:
+    orch = _orchestrator_with_market([])
+    orch.risk.add_position(Position(
+        market_condition_id="condition-1",
+        market_slug="btc-updown-5m-test",
+        side="UP",
+        token_id="up-token",
+        entry_price=0.53,
+        size_shares=7.5471,
+        size_usdc=4.0,
+        entry_ts=1.0,
+    ))
+
+    asyncio.run(orch._reconcile_real_positions())
+
+    assert orch.risk.state.open_positions == {}
+    assert orch._real_entries_paused is False
