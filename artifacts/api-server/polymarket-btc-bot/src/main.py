@@ -162,13 +162,16 @@ async def dry_run() -> int:
         market_start_ts=market.start_ts,
         market_end_ts=market_end_ts,
     )
-    log.info(f"signal (collapsed edge): action={sig3.action.value} edge={sig3.edge:+.4f}")
+    log.info(
+        "signal (bid above calibrated hold value): "
+        f"action={sig3.action.value} edge={sig3.edge:+.4f}"
+    )
     assert sig3.action == SignalAction.EXIT, f"expected EXIT, got {sig3.action}"
     event3 = await engine.execute(sig3, market, up_book3, down_book2)
     log.info(f"exit event: action={event3.action} pnl=${event3.pnl:.2f}")
     assert event3.action == "CLOSE"
     assert len(risk.state.open_positions) == 0
-    log.info("PASS: paper engine closed the position when edge collapsed")
+    log.info("PASS: paper engine closed when executable bid beat hold value")
 
     # Risk manager: ensure daily loss limit triggers reject
     risk.state.daily_pnl = -risk.cfg.daily_loss_limit_usdc - 0.01

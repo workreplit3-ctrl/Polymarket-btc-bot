@@ -8,6 +8,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.btc_feed import BtcPriceAggregator
+from src.calibration import calibrated_probability
 from src.config import _build, empty_paper_config
 from src.polymarket_client import OrderBook, OrderBookLevel
 from src.strategy import DivergenceStrategy, SignalAction
@@ -52,7 +53,15 @@ def test_value_model_uses_market_start_and_remaining_time():
     )
 
     assert signal.action == SignalAction.HOLD
-    assert signal.our_prob_up == 0.5
+    assert signal.our_prob_up == pytest.approx(
+        calibrated_probability(
+            0.5,
+            0.49,
+            market_logit_intercept=cfg.strategy.calibration_market_logit_intercept,
+            market_logit_slope=cfg.strategy.calibration_market_logit_slope,
+            raw_model_weight=cfg.strategy.calibration_raw_model_weight,
+        )
+    )
     assert "no actionable edge" in signal.reason
 
 
@@ -133,6 +142,8 @@ def test_strategy_refuses_entries_too_close_to_resolution():
 
 def test_x_can_confirm_only_a_near_threshold_model_edge():
     cfg = empty_paper_config()
+    cfg.strategy.entry_edge_pct = 0.08
+    cfg.strategy.x_min_base_entry_edge_pct = 0.06
     feed, start_ts, end_ts = _feed()
     strategy = DivergenceStrategy(cfg.strategy, feed)
 
@@ -159,12 +170,15 @@ def test_x_can_confirm_only_a_near_threshold_model_edge():
     )
 
     assert without_x.action == SignalAction.HOLD
-    assert with_x.action == SignalAction.OPEN_UP
-    assert "X boost" in with_x.reason
+    assert with_x.action == SignalAction.HOLD
+    assert "no actionable edge" in with_x.reason
+    assert "X boost" not in with_x.reason
 
 
 def test_conflicting_fresh_x_signal_blocks_new_entry():
     cfg = empty_paper_config()
+    cfg.strategy.entry_edge_pct = 0.08
+    cfg.strategy.x_min_base_entry_edge_pct = 0.06
     feed, start_ts, end_ts = _feed()
     strategy = DivergenceStrategy(cfg.strategy, feed)
 
@@ -184,7 +198,7 @@ def test_conflicting_fresh_x_signal_blocks_new_entry():
     )
 
     assert signal.action == SignalAction.HOLD
-    assert "conflicts with best side" in signal.reason
+    assert "no actionable edge" in signal.reason
 
 
 def _configured_strategy():
@@ -197,8 +211,8 @@ def _configured_strategy():
 
 def test_configured_entry_thresholds_preserve_other_limits():
     cfg = _configured_strategy()
-    assert cfg.strategy.entry_edge_pct == pytest.approx(0.12 * 0.7)
-    assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.10 * 0.7)
+    assert cfg.strategy.entry_edge_pct == pytest.approx(0.15)
+    assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.15)
     assert cfg.x.min_base_entry_edge_pct == cfg.strategy.x_min_base_entry_edge_pct
     assert cfg.risk.per_trade_size_usdc == 4
     assert cfg.risk.max_total_exposure_usdc == 4
@@ -211,16 +225,19 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.x_min_confidence == 0.55
     assert cfg.strategy.min_seconds_remaining_for_entry == 150
     assert cfg.strategy.max_seconds_remaining_for_entry == 270
+    assert cfg.strategy.calibration_market_logit_intercept == pytest.approx(0.0)
+    assert cfg.strategy.calibration_market_logit_slope == pytest.approx(1.0)
+    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.0)
 
 
 @pytest.mark.parametrize("side", ["UP", "DOWN"])
 @pytest.mark.parametrize(
     "ask,x_direction,remaining,opens",
     [
-        (0.39, None, 180, True),       # 9% net: passes 8.4%, not the old 12%.
-        (0.397, None, 180, False),     # 8.3% net: below the new threshold.
-        (0.409, "confirm", 180, True), # 7.1% base + 1.5% X confirmation.
-        (0.411, "confirm", 180, False),# Base below 7%: X cannot qualify it.
+        (0.39, None, 180, False),      # Old low threshold is no longer enough.
+        (0.397, None, 180, False),
+        (0.409, "confirm", 180, False), # X cannot rescue a weak calibrated edge.
+        (0.411, "confirm", 180, False),
         (0.39, "conflict", 180, False),
         (0.39, None, 60, False),      # Entry window is unchanged.
         (0.39, None, 280, False),
@@ -253,3 +270,63 @@ def test_configured_entry_behavior(side, ask, x_direction, remaining, opens):
         SignalAction.OPEN_UP if side == "UP" else SignalAction.OPEN_DOWN
     ) if opens else SignalAction.HOLD
     assert signal.action == expected
+
+
+def test_calibrated_value_gap_can_open_only_on_a_large_edge():
+    cfg = _configured_strategy()
+    feed, start_ts, _ = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    up_signal = strategy.evaluate(
+        _book("up", bid=0.09, ask=0.10),
+        _book("down", bid=0.89, ask=0.90),
+        current_position=None,
+        market_start_ts=start_ts,
+        market_end_ts=time.time() + 180,
+    )
+    down_signal = strategy.evaluate(
+        _book("up", bid=0.29, ask=0.30),
+        _book("down", bid=0.37, ask=0.38),
+        current_position=None,
+        market_start_ts=start_ts,
+        market_end_ts=time.time() + 180,
+    )
+
+    # With the calibrated prior, a 0.10 ask still does not clear the
+    # production 15-point threshold; the Down case below does.
+    assert up_signal.action == SignalAction.HOLD
+    assert down_signal.action == SignalAction.OPEN_DOWN
+
+
+def test_exit_does_not_trigger_on_midpoint_edge_collapse_alone():
+    cfg = empty_paper_config()
+    feed, start_ts, end_ts = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up", bid=0.56, ask=0.58),
+        _book("down", bid=0.42, ask=0.44),
+        current_position="UP",
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+    )
+
+    assert signal.action == SignalAction.HOLD
+
+
+def test_exit_uses_executable_bid_against_calibrated_hold_value():
+    cfg = empty_paper_config()
+    cfg.strategy.calibration_market_logit_intercept = -0.20
+    feed, start_ts, end_ts = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up", bid=0.66, ask=0.67),
+        _book("down", bid=0.34, ask=0.35),
+        current_position="UP",
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+    )
+
+    assert signal.action == SignalAction.EXIT
+    assert "sell bid exceeds calibrated hold value" in signal.reason

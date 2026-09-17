@@ -116,6 +116,9 @@ class StrategyCfg:
     max_token_price: float
     round_trip_cost_buffer_pct: float
     max_market_start_age_sec: float
+    calibration_market_logit_intercept: float
+    calibration_market_logit_slope: float
+    calibration_raw_model_weight: float
     real_entries_enabled: bool
     x_confirming_edge_pct: float
     x_min_confidence: float
@@ -219,7 +222,7 @@ def _build(raw: Dict[str, Any]) -> Config:
     s = raw.get("strategy", {})
     strat = StrategyCfg(
         tick_interval_sec=int(s.get("tick_interval_sec", 5)),
-        entry_edge_pct=float(s.get("entry_edge_pct", 0.12)),
+        entry_edge_pct=float(s.get("entry_edge_pct", 0.15)),
         exit_edge_pct=float(s.get("exit_edge_pct", 0.015)),
         adverse_edge_stop_pct=float(s.get("adverse_edge_stop_pct", 0.10)),
         prefer_side=s.get("prefer_side", "UP"),
@@ -239,10 +242,19 @@ def _build(raw: Dict[str, Any]) -> Config:
         max_market_start_age_sec=float(
             s.get("max_market_start_age_sec", 10.0)
         ),
+        calibration_market_logit_intercept=float(
+            s.get("calibration_market_logit_intercept", 0.0)
+        ),
+        calibration_market_logit_slope=float(
+            s.get("calibration_market_logit_slope", 1.0)
+        ),
+        calibration_raw_model_weight=float(
+            s.get("calibration_raw_model_weight", 0.0)
+        ),
         real_entries_enabled=bool(s.get("real_entries_enabled", False)),
         x_confirming_edge_pct=float(s.get("x_confirming_edge_pct", 0.015)),
         x_min_confidence=float(s.get("x_min_confidence", 0.55)),
-        x_min_base_entry_edge_pct=float(s.get("x_min_base_entry_edge_pct", 0.10)),
+        x_min_base_entry_edge_pct=float(s.get("x_min_base_entry_edge_pct", 0.15)),
     )
 
     r = raw.get("risk", {})
@@ -345,7 +357,7 @@ def empty_paper_config() -> Config:
         },
         "strategy": {
             "tick_interval_sec": 5,
-            "entry_edge_pct": 0.12,
+            "entry_edge_pct": 0.15,
             "exit_edge_pct": 0.015,
             "adverse_edge_stop_pct": 0.10,
             "prefer_side": "UP",
@@ -357,10 +369,13 @@ def empty_paper_config() -> Config:
             "max_token_price": 0.90,
             "round_trip_cost_buffer_pct": 0.02,
             "max_market_start_age_sec": 10.0,
+            "calibration_market_logit_intercept": 0.0,
+            "calibration_market_logit_slope": 1.0,
+            "calibration_raw_model_weight": 0.0,
             "real_entries_enabled": False,
             "x_confirming_edge_pct": 0.015,
             "x_min_confidence": 0.55,
-            "x_min_base_entry_edge_pct": 0.10,
+            "x_min_base_entry_edge_pct": 0.15,
         },
         "risk": {
             "max_open_positions": 1,

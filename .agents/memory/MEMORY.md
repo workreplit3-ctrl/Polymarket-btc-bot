@@ -6,3 +6,4 @@
 - [Clean Python verification](clean-python-environment.md) — disposable venv checks must isolate inherited Python and pip paths from project packages.
 - [Risk tuning scope](risk-tuning-scope.md) — entry aggressiveness is separate from monetary exposure; a threshold change does not measure actual risk.
 - [Real-market redemption](real-market-redemption.md) — a winning Polymarket position settles through Redeem, so wallet reconciliation must clear it before the next entry.
+- [Probability calibration](probability-calibration.md) — the resolved-market holdout currently favors market-mid baseline; keep raw normal-model weight at zero until new evidence.

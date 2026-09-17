@@ -79,8 +79,9 @@ strategy:
   tick_interval_sec: 5
 
   # Entry threshold after ask price and conservative transaction-cost buffer.
-  entry_edge_pct: 0.084       # 8.4 percentage points (30% lower entry threshold)
-  # Exit threshold: close when edge collapses below this
+  # Provisional paper-only threshold after chronological holdout calibration.
+  entry_edge_pct: 0.15
+  # Exit value gap: close when the executable bid beats calibrated hold value.
   exit_edge_pct: 0.015        # 1.5 percentage points
   # Hard stop on edge against us
   adverse_edge_stop_pct: 0.10
@@ -103,6 +104,11 @@ strategy:
   round_trip_cost_buffer_pct: 0.02
   # Refuse a market if the BTC tick used for its start price is older than this.
   max_market_start_age_sec: 10
+  # Holdout-selected baseline from 277 train and 119 chronological test
+  # markets. Learned logit calibration worsened the test, so use market mid.
+  calibration_market_logit_intercept: 0.0
+  calibration_market_logit_slope: 1.0
+  calibration_raw_model_weight: 0.0
   # Keep new real entries disabled until the probability model is calibrated
   # against resolved BTC markets. Existing positions can still be managed and
   # closed; this gate only prevents additional exposure.
@@ -111,7 +117,7 @@ strategy:
   # an entry by itself.
   x_confirming_edge_pct: 0.015
   x_min_confidence: 0.55
-  x_min_base_entry_edge_pct: 0.07
+  x_min_base_entry_edge_pct: 0.15
 
 # --- X confirmation ---------------------------------------------------
 # Read-only, allowlisted and fresh-only. Authors must pass verification and
@@ -131,7 +137,7 @@ x:
   min_followers: 100000
   confirming_edge_pct: 0.015
   min_confidence: 0.55
-  min_base_entry_edge_pct: 0.07
+  min_base_entry_edge_pct: 0.15
 
 # --- Risk control ---------------------------------------------------
 # You said you'll tune these yourself — these are sane conservative defaults.

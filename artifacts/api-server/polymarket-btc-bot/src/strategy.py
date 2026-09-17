@@ -15,6 +15,7 @@ from enum import Enum
 from typing import Optional
 
 from .btc_feed import BtcPriceAggregator
+from .calibration import calibrated_probability
 from .config import StrategyCfg
 from .logger import get_logger
 from .polymarket_client import OrderBook
@@ -142,7 +143,7 @@ class DivergenceStrategy:
             )
 
         drift_pct = (consensus.mid - market_start_price) / market_start_price * 100.0
-        our_prob_up = self._normal_prob_up(
+        raw_model_prob_up = self._normal_prob_up(
             consensus.mid,
             market_start_price,
             seconds_remaining,
@@ -159,7 +160,7 @@ class DivergenceStrategy:
                 action=SignalAction.HOLD,
                 btc_price=consensus.mid,
                 btc_drift_pct=drift_pct,
-                our_prob_up=our_prob_up,
+                our_prob_up=raw_model_prob_up,
                 market_prob_up=up_mid if up_mid is not None else 0.0,
                 edge=0.0,
                 abs_edge=0.0,
@@ -180,7 +181,7 @@ class DivergenceStrategy:
                     action=SignalAction.HOLD,
                     btc_price=consensus.mid,
                     btc_drift_pct=drift_pct,
-                    our_prob_up=our_prob_up,
+                    our_prob_up=raw_model_prob_up,
                     market_prob_up=up_mid,
                     edge=0.0,
                     abs_edge=0.0,
@@ -189,6 +190,13 @@ class DivergenceStrategy:
                 )
         # The "Up" token mid IS the market's probability of Up.
         market_prob_up = up_mid
+        our_prob_up = calibrated_probability(
+            raw_model_prob_up,
+            market_prob_up,
+            market_logit_intercept=self.cfg.calibration_market_logit_intercept,
+            market_logit_slope=self.cfg.calibration_market_logit_slope,
+            raw_model_weight=self.cfg.calibration_raw_model_weight,
+        )
         edge = our_prob_up - market_prob_up
         abs_edge = abs(edge)
         # A new position pays the ask, not the midpoint. Use actionable edge
@@ -213,34 +221,51 @@ class DivergenceStrategy:
 
         # --- exit logic (if we have a position) -----------------------
         if current_position == "UP":
-            # We hold Up. Edge against us means market now thinks Up less likely than we do.
+            # Sell only when the executable bid is worth more than our
+            # calibrated hold value.  A temporary mid-price edge collapse is
+            # not enough reason to pay the spread and realize a loss.
             if edge <= -self.cfg.adverse_edge_stop_pct:
                 return Signal(action=SignalAction.EXIT, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                               market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                               reason=f"adverse edge stop ({edge:+.4f})", ts=now)
-            if abs_edge <= self.cfg.exit_edge_pct:
+            up_bid = up_book.best_bid()
+            if (
+                up_bid is not None
+                and up_bid.price - our_prob_up >= self.cfg.exit_edge_pct
+            ):
                 return Signal(action=SignalAction.EXIT, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                               market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
-                              reason=f"edge collapsed ({abs_edge:.4f})", ts=now)
+                              reason=(
+                                  "sell bid exceeds calibrated hold value "
+                                  f"(gap={up_bid.price - our_prob_up:+.4f})"
+                              ), ts=now)
             return Signal(action=SignalAction.HOLD, btc_price=consensus.mid,
                           btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                           market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                           reason="holding UP", ts=now)
 
         if current_position == "DOWN":
-            # We hold Down. Edge FOR Up means against Down.
+            # Same value comparison for the Down token.
             if edge >= self.cfg.adverse_edge_stop_pct:
                 return Signal(action=SignalAction.EXIT, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                               market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                               reason=f"adverse edge stop ({edge:+.4f})", ts=now)
-            if abs_edge <= self.cfg.exit_edge_pct:
+            down_bid = down_book.best_bid()
+            down_hold_value = 1.0 - our_prob_up
+            if (
+                down_bid is not None
+                and down_bid.price - down_hold_value >= self.cfg.exit_edge_pct
+            ):
                 return Signal(action=SignalAction.EXIT, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                               market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
-                              reason=f"edge collapsed ({abs_edge:.4f})", ts=now)
+                              reason=(
+                                  "sell bid exceeds calibrated hold value "
+                                  f"(gap={down_bid.price - down_hold_value:+.4f})"
+                              ), ts=now)
             return Signal(action=SignalAction.HOLD, btc_price=consensus.mid,
                           btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                           market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
