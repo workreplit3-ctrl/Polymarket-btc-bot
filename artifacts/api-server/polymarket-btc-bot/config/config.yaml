@@ -145,7 +145,7 @@ risk:
   # Max simultaneously open positions
   max_open_positions: 1
   # Per-trade size in USDC (paper or real)
-  per_trade_size_usdc: 4.0
+  per_trade_size_usdc: 1.0
   # Hard daily loss limit in USDC; bot halts after hitting it
   daily_loss_limit_usdc: 4.0
   # Max total exposure in USDC across all open positions
