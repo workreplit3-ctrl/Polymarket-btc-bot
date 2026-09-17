@@ -55,6 +55,42 @@ def test_real_mode_readiness_reports_ready_without_exposing_wallet_values() -> N
     assert funder not in readiness.reason
 
 
+@pytest.mark.parametrize(
+    "outcomes",
+    [
+        '["Unknown","Other"]',
+        '["Up","Up"]',
+        '["Up"]',
+    ],
+)
+def test_market_parser_rejects_ambiguous_outcome_labels(outcomes: str) -> None:
+    client = PolymarketClient(empty_paper_config().polymarket)
+    parsed = client._parse_market(
+        {
+            "slug": "btc-updown-5m-123",
+            "outcomes": outcomes,
+            "clobTokenIds": '["token-a","token-b"]',
+            "endDate": "2099-01-01T00:00:00Z",
+        }
+    )
+    assert parsed is None
+
+
+def test_market_parser_uses_labels_not_token_order() -> None:
+    client = PolymarketClient(empty_paper_config().polymarket)
+    parsed = client._parse_market(
+        {
+            "slug": "btc-updown-5m-123",
+            "outcomes": '["Down","Up"]',
+            "clobTokenIds": '["down-token","up-token"]',
+            "endDate": "2099-01-01T00:00:00Z",
+        }
+    )
+    assert parsed is not None
+    assert parsed.outcome_up_token_id == "up-token"
+    assert parsed.outcome_down_token_id == "down-token"
+
+
 class RecordingSigner:
     """Accept only the current py-clob-client-v2 order call shape."""
 

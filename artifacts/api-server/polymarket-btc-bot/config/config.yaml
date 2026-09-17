@@ -101,6 +101,8 @@ strategy:
   max_token_price: 0.90
   # Conservative allowance for fees, spread, and exit slippage.
   round_trip_cost_buffer_pct: 0.02
+  # Refuse a market if the BTC tick used for its start price is older than this.
+  max_market_start_age_sec: 10
   # Keep new real entries disabled until the probability model is calibrated
   # against resolved BTC markets. Existing positions can still be managed and
   # closed; this gate only prevents additional exposure.
@@ -149,6 +151,8 @@ risk:
   # Slippage budget: refuse to place orders whose expected fill is worse than
   # mid + this many cents (Polymarket prices are 0..1, so 0.02 = 2 cents).
   max_slippage_cents: 0.02
+  # The operator's trading day; used for the persistent daily loss guard.
+  day_timezone: "Asia/Yekaterinburg"
 
 # --- Storage --------------------------------------------------------
 storage:

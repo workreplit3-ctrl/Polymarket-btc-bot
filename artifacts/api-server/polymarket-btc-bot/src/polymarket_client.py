@@ -273,13 +273,21 @@ class PolymarketClient:
     def _parse_market(self, m: Dict[str, Any]) -> Optional[MarketInfo]:
         # Polymarket BTC up/down markets: 2-outcome markets
         # The "outcomes" field is a JSON string in gamma; tokens in clobTokenIds
-        outcomes_raw = m.get("outcomes") or m.get("outcomeList") or '["Up","Down"]'
+        outcomes_raw = m.get("outcomes") or m.get("outcomeList")
+        if outcomes_raw is None:
+            log.warning(
+                f"skip market {m.get('slug', '')}: outcome labels are missing"
+            )
+            return None
         if isinstance(outcomes_raw, str):
             try:
                 import json as _json
                 outcomes = _json.loads(outcomes_raw)
             except Exception:
-                outcomes = ["Up", "Down"]
+                log.warning(
+                    f"skip market {m.get('slug', '')}: outcome labels are invalid"
+                )
+                return None
         else:
             outcomes = list(outcomes_raw)
 
@@ -289,18 +297,33 @@ class PolymarketClient:
             tokens = _json.loads(tokens_raw)
         else:
             tokens = list(tokens_raw)
-        if len(tokens) != 2:
+        if len(tokens) != 2 or len(outcomes) != 2:
+            log.warning(
+                f"skip market {m.get('slug', '')}: expected exactly two "
+                "outcomes and two tokens"
+            )
             return None
 
-        # Convention: token[0] = first outcome ("Up"), token[1] = second ("Down")
-        up_idx = 0
-        down_idx = 1
-        # Heuristic: try to match label "Up"/"Yes" -> up_idx
-        for i, lbl in enumerate(outcomes):
-            if str(lbl).lower() in ("up", "yes"):
-                up_idx = i
-            if str(lbl).lower() in ("down", "no"):
-                down_idx = i
+        # Never infer the direction from token order alone.  The Gamma
+        # response is the source of truth for which token means Up/Down.
+        labels = [str(label).strip().lower() for label in outcomes]
+        up_indices = [i for i, label in enumerate(labels) if label in ("up", "yes")]
+        down_indices = [
+            i for i, label in enumerate(labels) if label in ("down", "no")
+        ]
+        if len(up_indices) != 1 or len(down_indices) != 1:
+            log.warning(
+                f"skip market {m.get('slug', '')}: unsupported outcome labels "
+                f"{outcomes!r}"
+            )
+            return None
+        up_idx = up_indices[0]
+        down_idx = down_indices[0]
+        if up_idx == down_idx:
+            log.warning(
+                f"skip market {m.get('slug', '')}: Up and Down map to one token"
+            )
+            return None
 
         volume_values = [
             float(m.get(key) or 0.0)

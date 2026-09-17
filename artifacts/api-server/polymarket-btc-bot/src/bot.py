@@ -73,6 +73,7 @@ class Orchestrator:
     async def run(self) -> None:
         log.info(f"orchestrator starting in {self.cfg.mode} mode")
         self._sync_pause_state()
+        await self._restore_persisted_risk_state()
         if self.cfg.mode == "real":
             try:
                 await self._reconcile_real_positions()
@@ -99,6 +100,22 @@ class Orchestrator:
             await self._loop()
         finally:
             await self._shutdown_graceful()
+
+    async def _restore_persisted_risk_state(self) -> None:
+        state = await self.storage.persisted_risk_state(
+            mode=self.cfg.mode,
+            day_timezone=self.cfg.risk.day_timezone,
+        )
+        self.risk.restore_persisted_state(
+            daily_pnl=state["daily_pnl"],
+            last_exit_ts=state["last_exit_ts"],
+            last_loss_ts=state["last_loss_ts"],
+        )
+        log.info(
+            f"persisted risk state restored: mode={self.cfg.mode} "
+            f"daily_pnl=${state['daily_pnl']:+.4f} "
+            f"last_loss_ts={state['last_loss_ts']:.0f}"
+        )
 
     def request_shutdown(self) -> None:
         self._shutdown.set()

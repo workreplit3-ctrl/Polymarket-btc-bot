@@ -5,6 +5,8 @@ import time
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Dict, Iterable, List, Optional
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from .config import RiskCfg
 from .logger import get_logger
@@ -59,10 +61,37 @@ class RiskManager:
 
     # ----- daily reset ----------------------------------------------
     def _maybe_reset_daily(self) -> None:
-        today = time.strftime("%Y-%m-%d", time.gmtime())
+        today = self._today_key()
         if self.state.daily_pnl_date != today:
             self.state.daily_pnl_date = today
             self.state.daily_pnl = 0.0
+
+    def _today_key(self) -> str:
+        try:
+            return datetime.now(ZoneInfo(self.cfg.day_timezone)).date().isoformat()
+        except (KeyError, ValueError):
+            log.warning(
+                f"invalid risk day timezone {self.cfg.day_timezone!r}; using UTC"
+            )
+            return datetime.now(ZoneInfo("UTC")).date().isoformat()
+
+    def restore_persisted_state(
+        self,
+        *,
+        daily_pnl: float,
+        last_exit_ts: float,
+        last_loss_ts: float,
+    ) -> None:
+        """Restore loss guards after a process restart.
+
+        Position holdings are reconciled separately from the wallet.  This
+        method restores only the persisted risk counters so a restart cannot
+        bypass the daily loss limit or the post-loss cooldown.
+        """
+        self._maybe_reset_daily()
+        self.state.daily_pnl = float(daily_pnl)
+        self.state.last_exit_ts = float(last_exit_ts)
+        self.state.last_loss_ts = float(last_loss_ts)
 
     # ----- position tracking ---------------------------------------
     def add_position(self, p: Position) -> None:

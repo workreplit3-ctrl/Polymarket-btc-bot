@@ -100,7 +100,10 @@ class DivergenceStrategy:
         # A market-specific start price is required. Falling back to a generic
         # 300-second lookback would recreate the original source of false edge.
         market_start_price = (
-            self.feed.price_at(market_start_ts)
+            self.feed.price_at(
+                market_start_ts,
+                max_age_sec=self.cfg.max_market_start_age_sec,
+            )
             if market_start_ts is not None
             else None
         )
@@ -113,7 +116,10 @@ class DivergenceStrategy:
                 market_prob_up=0.0,
                 edge=0.0,
                 abs_edge=0.0,
-                reason="market start price is not available in BTC history",
+                reason=(
+                    "market start price is unavailable or older than "
+                    f"{self.cfg.max_market_start_age_sec:.0f}s"
+                ),
                 ts=now,
             )
 
@@ -160,6 +166,27 @@ class DivergenceStrategy:
                 reason="orderbook one-sided",
                 ts=now,
             )
+        for label, book in (("Up", up_book), ("Down", down_book)):
+            bid = book.best_bid()
+            ask = book.best_ask()
+            if (
+                bid is None
+                or ask is None
+                or not 0.0 < bid.price <= 1.0
+                or not 0.0 < ask.price <= 1.0
+                or bid.price > ask.price
+            ):
+                return Signal(
+                    action=SignalAction.HOLD,
+                    btc_price=consensus.mid,
+                    btc_drift_pct=drift_pct,
+                    our_prob_up=our_prob_up,
+                    market_prob_up=up_mid,
+                    edge=0.0,
+                    abs_edge=0.0,
+                    reason=f"{label} orderbook invalid or crossed",
+                    ts=now,
+                )
         # The "Up" token mid IS the market's probability of Up.
         market_prob_up = up_mid
         edge = our_prob_up - market_prob_up

@@ -285,7 +285,10 @@ class TelegramBot:
     async def _cmd_pnl(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not self._authorized(update):
             await self._reject(update); return
-        pnl = await self.storage.today_pnl()
+        pnl = await self.storage.today_pnl(
+            mode=self.cfg.mode,
+            day_timezone=self.cfg.risk.day_timezone,
+        )
         snap = self.risk.snapshot()
         await update.effective_message.reply_text(
             f"today PnL (closed trades): ${pnl:.2f}\n"

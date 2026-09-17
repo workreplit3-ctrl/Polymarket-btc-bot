@@ -115,6 +115,7 @@ class StrategyCfg:
     min_token_price: float
     max_token_price: float
     round_trip_cost_buffer_pct: float
+    max_market_start_age_sec: float
     real_entries_enabled: bool
     x_confirming_edge_pct: float
     x_min_confidence: float
@@ -130,6 +131,7 @@ class RiskCfg:
     loss_cooldown_sec: int
     post_trade_cooldown_sec: int
     max_slippage_cents: float
+    day_timezone: str
 
 
 @dataclass
@@ -234,6 +236,9 @@ def _build(raw: Dict[str, Any]) -> Config:
         round_trip_cost_buffer_pct=float(
             s.get("round_trip_cost_buffer_pct", 0.02)
         ),
+        max_market_start_age_sec=float(
+            s.get("max_market_start_age_sec", 10.0)
+        ),
         real_entries_enabled=bool(s.get("real_entries_enabled", False)),
         x_confirming_edge_pct=float(s.get("x_confirming_edge_pct", 0.015)),
         x_min_confidence=float(s.get("x_min_confidence", 0.55)),
@@ -249,6 +254,7 @@ def _build(raw: Dict[str, Any]) -> Config:
         loss_cooldown_sec=int(r.get("loss_cooldown_sec", 600)),
         post_trade_cooldown_sec=int(r.get("post_trade_cooldown_sec", 60)),
         max_slippage_cents=float(r.get("max_slippage_cents", 0.02)),
+        day_timezone=str(r.get("day_timezone", "Asia/Yekaterinburg")),
     )
 
     x_raw = raw.get("x", {})
@@ -350,6 +356,7 @@ def empty_paper_config() -> Config:
             "min_token_price": 0.10,
             "max_token_price": 0.90,
             "round_trip_cost_buffer_pct": 0.02,
+            "max_market_start_age_sec": 10.0,
             "real_entries_enabled": False,
             "x_confirming_edge_pct": 0.015,
             "x_min_confidence": 0.55,
@@ -363,6 +370,7 @@ def empty_paper_config() -> Config:
             "loss_cooldown_sec": 600,
             "post_trade_cooldown_sec": 60,
             "max_slippage_cents": 0.02,
+            "day_timezone": "Asia/Yekaterinburg",
         },
         "storage": {"sqlite_path": "data/bot.db", "log_retention_days": 30},
         "logging": {"level": "INFO", "file": "logs/bot.log", "json": False},

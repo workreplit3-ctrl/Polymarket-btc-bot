@@ -136,11 +136,25 @@ class BtcPriceAggregator:
     def price_n_seconds_ago(self, n: float) -> Optional[float]:
         return self._history.price_n_seconds_ago(time.time(), n)
 
-    def price_at(self, ts: float) -> Optional[float]:
-        """Return the latest observed consensus-feed price at or before ts."""
+    def price_at(
+        self, ts: float, max_age_sec: Optional[float] = None
+    ) -> Optional[float]:
+        """Return a recent observed feed price at or before ``ts``.
+
+        A market start price is only useful when it was observed close to the
+        actual start.  Without the optional age guard, a feed outage around
+        the boundary could reuse an arbitrarily old price and manufacture
+        drift.
+        """
         if ts <= 0:
             return None
-        return self._history.price_at_or_before(ts)
+        for observed_ts, price in reversed(self._history.data):
+            if observed_ts > ts:
+                continue
+            if max_age_sec is not None and ts - observed_ts > max_age_sec:
+                return None
+            return price
+        return None
 
     # ----- lifecycle -------------------------------------------------
     async def start(self) -> None:

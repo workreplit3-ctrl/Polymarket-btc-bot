@@ -7,6 +7,8 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Any, Optional
+from datetime import datetime, time as datetime_time
+from zoneinfo import ZoneInfo
 
 
 SCHEMA = """
@@ -200,19 +202,79 @@ class Storage:
         finally:
             c.close()
 
-    async def today_pnl(self) -> float:
+    async def today_pnl(
+        self, mode: Optional[str] = None, day_timezone: str = "UTC"
+    ) -> float:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._today_pnl_sync)
+        return await loop.run_in_executor(
+            None, self._today_pnl_sync, mode, day_timezone
+        )
 
-    def _today_pnl_sync(self) -> float:
+    def _today_pnl_sync(self, mode: Optional[str], day_timezone: str) -> float:
         c = self._conn()
         try:
-            today_start = time.time() - (time.time() % 86400)
-            r = c.execute(
-                "SELECT COALESCE(SUM(pnl),0) as s FROM trades "
-                "WHERE action='CLOSE' AND ts >= ?", (today_start,)
-            ).fetchone()
+            try:
+                zone = ZoneInfo(day_timezone)
+            except (KeyError, ValueError):
+                zone = ZoneInfo("UTC")
+            now = datetime.now(zone)
+            today_start = datetime.combine(
+                now.date(), datetime_time.min, tzinfo=zone
+            ).timestamp()
+            if mode is None:
+                r = c.execute(
+                    "SELECT COALESCE(SUM(pnl),0) as s FROM trades "
+                    "WHERE action='CLOSE' AND ts >= ?", (today_start,)
+                ).fetchone()
+            else:
+                r = c.execute(
+                    "SELECT COALESCE(SUM(pnl),0) as s FROM trades "
+                    "WHERE mode=? AND action='CLOSE' AND ts >= ?",
+                    (mode, today_start),
+                ).fetchone()
             return float(r["s"]) if r else 0.0
+        finally:
+            c.close()
+
+    async def persisted_risk_state(
+        self, mode: str, day_timezone: str
+    ) -> dict[str, float]:
+        """Read risk counters needed to survive a process restart."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, self._persisted_risk_state_sync, mode, day_timezone
+        )
+
+    def _persisted_risk_state_sync(
+        self, mode: str, day_timezone: str
+    ) -> dict[str, float]:
+        c = self._conn()
+        try:
+            try:
+                zone = ZoneInfo(day_timezone)
+            except (KeyError, ValueError):
+                zone = ZoneInfo("UTC")
+            now = datetime.now(zone)
+            today_start = datetime.combine(
+                now.date(), datetime_time.min, tzinfo=zone
+            ).timestamp()
+            pnl_row = c.execute(
+                "SELECT COALESCE(SUM(pnl),0) AS pnl, "
+                "COALESCE(MAX(ts),0) AS last_exit_ts "
+                "FROM trades WHERE mode=? AND action='CLOSE' AND ts>=?",
+                (mode, today_start),
+            ).fetchone()
+            loss_row = c.execute(
+                "SELECT COALESCE(MAX(ts),0) AS last_loss_ts "
+                "FROM trades WHERE mode=? AND action='CLOSE' "
+                "AND pnl<0 AND ts>=?",
+                (mode, today_start),
+            ).fetchone()
+            return {
+                "daily_pnl": float(pnl_row["pnl"] or 0.0),
+                "last_exit_ts": float(pnl_row["last_exit_ts"] or 0.0),
+                "last_loss_ts": float(loss_row["last_loss_ts"] or 0.0),
+            }
         finally:
             c.close()
 

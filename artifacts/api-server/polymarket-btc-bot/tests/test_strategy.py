@@ -72,6 +72,48 @@ def test_strategy_refuses_generic_lookback_without_market_start():
     assert "market start price" in signal.reason
 
 
+def test_strategy_refuses_stale_market_start_price():
+    cfg = empty_paper_config()
+    feed = BtcPriceAggregator(cfg.btc_feeds)
+    now = time.time()
+    observed_start = now - 40.0
+    market_start = now - 20.0
+    feed._history.append(observed_start, 60000.0)
+    feed._binance_price = 60000.0
+    feed._binance_ts = now
+    feed._coinbase_price = 60000.0
+    feed._coinbase_ts = now
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up"),
+        _book("down"),
+        current_position=None,
+        market_start_ts=market_start,
+        market_end_ts=now + 180.0,
+    )
+
+    assert signal.action == SignalAction.SKIP_NO_HISTORY
+    assert "older than" in signal.reason
+
+
+def test_strategy_refuses_crossed_orderbook():
+    cfg = empty_paper_config()
+    feed, start_ts, end_ts = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up", bid=0.60, ask=0.50),
+        _book("down"),
+        current_position=None,
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+    )
+
+    assert signal.action == SignalAction.HOLD
+    assert "invalid or crossed" in signal.reason
+
+
 def test_strategy_refuses_entries_too_close_to_resolution():
     cfg = empty_paper_config()
     feed, start_ts, _end_ts = _feed()
