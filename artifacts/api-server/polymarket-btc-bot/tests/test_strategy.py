@@ -218,6 +218,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.risk.max_total_exposure_usdc == 4
     assert cfg.risk.daily_loss_limit_usdc == 4
     assert cfg.risk.max_open_positions == 1
+    assert cfg.strategy.real_entries_enabled is True
     assert cfg.strategy.exit_edge_pct == 0.015
     assert cfg.strategy.adverse_edge_stop_pct == 0.10
     assert cfg.strategy.round_trip_cost_buffer_pct == 0.02

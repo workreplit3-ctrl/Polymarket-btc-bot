@@ -109,10 +109,9 @@ strategy:
   calibration_market_logit_intercept: 0.0
   calibration_market_logit_slope: 1.0
   calibration_raw_model_weight: 0.0
-  # Keep new real entries disabled until the probability model is calibrated
-  # against resolved BTC markets. Existing positions can still be managed and
-  # closed; this gate only prevents additional exposure.
-  real_entries_enabled: false
+  # Explicitly enabled by the operator after confirming the $1 risk limit.
+  # Existing reconciliation, pause, risk, and FOK checks still apply.
+  real_entries_enabled: true
   # X can only confirm a near-threshold BTC model edge; it cannot create
   # an entry by itself.
   x_confirming_edge_pct: 0.015
