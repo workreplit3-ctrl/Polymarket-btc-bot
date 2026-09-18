@@ -236,7 +236,7 @@ def _configured_strategy():
 
 def test_configured_entry_thresholds_preserve_other_limits():
     cfg = _configured_strategy()
-    assert cfg.strategy.entry_edge_pct == pytest.approx(0.084)
+    assert cfg.strategy.entry_edge_pct == pytest.approx(0.10)
     assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.07)
     assert cfg.x.min_base_entry_edge_pct == cfg.strategy.x_min_base_entry_edge_pct
     assert cfg.risk.per_trade_size_usdc == 1
@@ -255,7 +255,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.max_seconds_remaining_for_entry == 270
     assert cfg.strategy.calibration_market_logit_intercept == pytest.approx(0.0)
     assert cfg.strategy.calibration_market_logit_slope == pytest.approx(1.0)
-    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.35)
+    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.60)
 
 
 @pytest.mark.parametrize("take_profit_pct", [0.05, 1.0])
