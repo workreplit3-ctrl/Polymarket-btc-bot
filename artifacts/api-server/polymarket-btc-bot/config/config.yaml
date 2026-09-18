@@ -89,6 +89,8 @@ strategy:
   take_profit_cost_buffer_pct: 0.02  # estimated fees + spread + exit slippage
   # Earlier hard stop on edge against us; lower threshold exits sooner.
   adverse_edge_stop_pct: 0.06
+  # Price-based emergency exit, evaluated before model/history filters.
+  hard_stop_loss_pct: 0.10    # sell when executable bid is 10% below entry
 
   # Side preference: when the edge is exactly equal on both sides, prefer "YES Up".
   prefer_side: "UP"

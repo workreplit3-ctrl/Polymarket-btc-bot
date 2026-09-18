@@ -109,6 +109,7 @@ class StrategyCfg:
     take_profit_pct: float
     take_profit_cost_buffer_pct: float
     adverse_edge_stop_pct: float
+    hard_stop_loss_pct: float
     prefer_side: str
     max_volatility_60s: float
     min_volatility_per_sec: float
@@ -231,6 +232,7 @@ def _build(raw: Dict[str, Any]) -> Config:
             s.get("take_profit_cost_buffer_pct", 0.02)
         ),
         adverse_edge_stop_pct=float(s.get("adverse_edge_stop_pct", 0.06)),
+        hard_stop_loss_pct=float(s.get("hard_stop_loss_pct", 0.10)),
         prefer_side=s.get("prefer_side", "UP"),
         max_volatility_60s=float(s.get("max_volatility_60s", 0.0040)),
         min_volatility_per_sec=float(s.get("min_volatility_per_sec", 0.00001)),
@@ -270,6 +272,11 @@ def _build(raw: Dict[str, Any]) -> Config:
     if strat.take_profit_cost_buffer_pct < 0:
         raise ConfigError(
             "strategy.take_profit_cost_buffer_pct cannot be negative"
+        )
+    if not 0.01 <= strat.hard_stop_loss_pct <= 0.95:
+        raise ConfigError(
+            "strategy.hard_stop_loss_pct must be between 0.01 and 0.95 "
+            "(1%-95%)"
         )
 
     r = raw.get("risk", {})
@@ -377,6 +384,7 @@ def empty_paper_config() -> Config:
             "take_profit_pct": 0.20,
             "take_profit_cost_buffer_pct": 0.02,
             "adverse_edge_stop_pct": 0.06,
+            "hard_stop_loss_pct": 0.10,
             "prefer_side": "UP",
             "max_volatility_60s": 0.0040,
             "min_volatility_per_sec": 0.00001,

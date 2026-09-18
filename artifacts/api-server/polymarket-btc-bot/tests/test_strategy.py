@@ -248,6 +248,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.take_profit_pct == pytest.approx(0.20)
     assert cfg.strategy.take_profit_cost_buffer_pct == pytest.approx(0.02)
     assert cfg.strategy.adverse_edge_stop_pct == 0.06
+    assert cfg.strategy.hard_stop_loss_pct == pytest.approx(0.10)
     assert cfg.strategy.round_trip_cost_buffer_pct == 0.02
     assert cfg.strategy.x_confirming_edge_pct == 0.015
     assert cfg.strategy.x_min_confidence == 0.55
@@ -381,6 +382,26 @@ def test_exit_uses_executable_bid_against_calibrated_hold_value():
 
     assert signal.action == SignalAction.EXIT
     assert "sell bid exceeds calibrated hold value" in signal.reason
+
+
+def test_hard_price_stop_runs_before_missing_market_history():
+    cfg = empty_paper_config()
+    cfg.strategy.hard_stop_loss_pct = 0.10
+    feed, _, _ = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up", bid=0.10, ask=0.11),
+        _book("down", bid=0.69, ask=0.70),
+        current_position="DOWN",
+        market_start_ts=None,
+        market_end_ts=None,
+        current_entry_price=0.77,
+    )
+
+    assert signal.action == SignalAction.EXIT
+    assert "hard price stop" in signal.reason
+    assert "loss=-10.39%" in signal.reason
 
 
 def test_take_profit_uses_entry_price_and_cost_buffer():

@@ -83,9 +83,43 @@ class DivergenceStrategy:
         current_entry_price: Optional[float] = None,
     ) -> Signal:
         now = time.time()
+        consensus = self.feed.consensus()
+
+        # A price-based emergency stop must remain available even when the
+        # market-start tick is stale or the opposite outcome book is one-sided.
+        # The model-based stop below is complementary, not a replacement.
+        if (
+            current_position in ("UP", "DOWN")
+            and current_entry_price is not None
+            and current_entry_price > 0.0
+        ):
+            position_book = up_book if current_position == "UP" else down_book
+            position_bid = position_book.best_bid()
+            if (
+                position_bid is not None
+                and 0.0 < position_bid.price <= 1.0
+            ):
+                price_return = position_bid.price / current_entry_price - 1.0
+                if price_return <= -self.cfg.hard_stop_loss_pct:
+                    return Signal(
+                        action=SignalAction.EXIT,
+                        btc_price=consensus.mid,
+                        btc_drift_pct=0.0,
+                        our_prob_up=0.0,
+                        market_prob_up=0.0,
+                        edge=0.0,
+                        abs_edge=0.0,
+                        reason=(
+                            "hard price stop "
+                            f"(loss={price_return:.2%}, "
+                            f"limit={self.cfg.hard_stop_loss_pct:.2%}, "
+                            f"bid={position_bid.price:.4f}, "
+                            f"entry={current_entry_price:.4f})"
+                        ),
+                        ts=now,
+                    )
 
         # --- consensus / staleness check -------------------------------
-        consensus = self.feed.consensus()
         if consensus.is_stale or consensus.mid <= 0:
             return Signal(
                 action=SignalAction.SKIP_STALE_FEED,
