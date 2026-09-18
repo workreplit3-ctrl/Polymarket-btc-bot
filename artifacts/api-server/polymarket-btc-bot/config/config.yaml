@@ -78,9 +78,10 @@ strategy:
   # How often to re-evaluate the signal (seconds)
   tick_interval_sec: 5
 
-  # Balanced entry threshold after ask price and transaction-cost buffer.
+  # Lowered by explicit operator confirmation to allow more paper/live
+  # opportunities while keeping ask and transaction-cost guards active.
   # The $1 per-trade risk cap and all execution guards remain active.
-  entry_edge_pct: 0.10
+  entry_edge_pct: 0.05
   # Exit value gap: close when the executable bid beats calibrated hold value.
   exit_edge_pct: 0.015        # 1.5 percentage points
   # Close a position once the executable bid implies this net return over
