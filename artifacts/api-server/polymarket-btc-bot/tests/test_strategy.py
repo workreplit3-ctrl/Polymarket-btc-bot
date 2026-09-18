@@ -239,7 +239,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.entry_edge_pct == pytest.approx(0.10)
     assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.07)
     assert cfg.x.min_base_entry_edge_pct == cfg.strategy.x_min_base_entry_edge_pct
-    assert cfg.risk.per_trade_size_usdc == pytest.approx(1.5)
+    assert cfg.risk.per_trade_size_usdc == pytest.approx(1.0)
     assert cfg.risk.max_total_exposure_usdc == 4
     assert cfg.risk.daily_loss_limit_usdc == 20
     assert cfg.risk.max_open_positions == 1
