@@ -255,7 +255,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.max_seconds_remaining_for_entry == 270
     assert cfg.strategy.calibration_market_logit_intercept == pytest.approx(0.0)
     assert cfg.strategy.calibration_market_logit_slope == pytest.approx(1.0)
-    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(1.0)
+    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.35)
 
 
 @pytest.mark.parametrize("take_profit_pct", [0.05, 1.0])
@@ -285,9 +285,9 @@ def test_take_profit_range_rejects_values_outside_five_to_one_hundred_percent(
 @pytest.mark.parametrize(
     "ask,x_direction,remaining,opens",
     [
-        (0.39, None, 180, True),       # Restored independent value model.
+        (0.39, None, 180, False),      # Shrunk raw model does not overtrade.
         (0.397, None, 180, False),
-        (0.409, "confirm", 180, True),
+        (0.409, "confirm", 180, False),
         (0.411, "confirm", 180, False),
         (0.39, "conflict", 180, False),
         (0.39, None, 60, False),      # Entry window is unchanged.
@@ -343,10 +343,10 @@ def test_calibrated_value_gap_can_open_only_on_a_large_edge():
         market_end_ts=time.time() + 180,
     )
 
-    # The independent value model can now create an executable edge against
-    # the ask on both sides; midpoint-only calibration could not do this.
+    # A large value gap can still create an executable edge, but the market
+    # prior now dampens the raw model instead of treating it as certainty.
     assert up_signal.action == SignalAction.OPEN_UP
-    assert down_signal.action == SignalAction.OPEN_UP
+    assert down_signal.action == SignalAction.OPEN_DOWN
 
 
 def test_exit_does_not_trigger_on_midpoint_edge_collapse_alone():

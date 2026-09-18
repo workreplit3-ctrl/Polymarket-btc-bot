@@ -109,11 +109,11 @@ strategy:
   round_trip_cost_buffer_pct: 0.02
   # Refuse a market if the BTC tick used for its start price is older than this.
   max_market_start_age_sec: 10
-  # Market calibration remains the prior, while the independent BTC value
-  # signal is restored so executable ask prices can have a real edge.
+  # Keep the market prior dominant after today's two full-loss trades exposed
+  # overconfidence in the independent BTC value signal.
   calibration_market_logit_intercept: 0.0
   calibration_market_logit_slope: 1.0
-  calibration_raw_model_weight: 1.0
+  calibration_raw_model_weight: 0.35
   # Explicitly enabled by the operator after confirming the $1 risk limit.
   # Existing reconciliation, pause, risk, and FOK checks still apply.
   real_entries_enabled: true
