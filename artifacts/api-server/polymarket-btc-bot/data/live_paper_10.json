@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-09-18T11:45:31.995715+00:00",
+  "data_source": {
+    "btc": "Binance + Coinbase live WebSocket consensus",
+    "polymarket": "Gamma market metadata + public CLOB orderbooks",
+    "orders_submitted": false,
+    "telegram_started": false
+  },
+  "strategy": {
+    "raw_model_weight": 0.0,
+    "entry_edge_pct": 0.1,
+    "per_trade_size_usdc": 1.0,
+    "max_open_positions": 1
+  },
+  "closed_trades": 0,
+  "target_trades": 10,
+  "complete": false,
+  "elapsed_sec": 36.69759011268616,
+  "pnl_usdc": 0,
+  "wins": 0,
+  "losses": 0,
+  "win_rate": 0.0,
+  "avg_pnl_usdc": 0.0,
+  "trades": []
+}
