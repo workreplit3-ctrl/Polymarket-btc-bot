@@ -84,6 +84,10 @@ strategy:
   entry_edge_pct: 0.084
   # Exit value gap: close when the executable bid beats calibrated hold value.
   exit_edge_pct: 0.015        # 1.5 percentage points
+  # Close a position once the executable bid implies this net return over
+  # entry, after the separate cost buffer below.
+  take_profit_pct: 0.12       # 12% net target; tune within the 10-15% range
+  take_profit_cost_buffer_pct: 0.02  # estimated fees + spread + exit slippage
   # Hard stop on edge against us
   adverse_edge_stop_pct: 0.10
 

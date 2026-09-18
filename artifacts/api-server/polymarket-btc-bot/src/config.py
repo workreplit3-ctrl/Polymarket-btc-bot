@@ -106,6 +106,8 @@ class StrategyCfg:
     tick_interval_sec: int
     entry_edge_pct: float
     exit_edge_pct: float
+    take_profit_pct: float
+    take_profit_cost_buffer_pct: float
     adverse_edge_stop_pct: float
     prefer_side: str
     max_volatility_60s: float
@@ -224,6 +226,10 @@ def _build(raw: Dict[str, Any]) -> Config:
         tick_interval_sec=int(s.get("tick_interval_sec", 5)),
         entry_edge_pct=float(s.get("entry_edge_pct", 0.15)),
         exit_edge_pct=float(s.get("exit_edge_pct", 0.015)),
+        take_profit_pct=float(s.get("take_profit_pct", 0.12)),
+        take_profit_cost_buffer_pct=float(
+            s.get("take_profit_cost_buffer_pct", 0.02)
+        ),
         adverse_edge_stop_pct=float(s.get("adverse_edge_stop_pct", 0.10)),
         prefer_side=s.get("prefer_side", "UP"),
         max_volatility_60s=float(s.get("max_volatility_60s", 0.0040)),
@@ -359,6 +365,8 @@ def empty_paper_config() -> Config:
             "tick_interval_sec": 5,
             "entry_edge_pct": 0.15,
             "exit_edge_pct": 0.015,
+            "take_profit_pct": 0.12,
+            "take_profit_cost_buffer_pct": 0.02,
             "adverse_edge_stop_pct": 0.10,
             "prefer_side": "UP",
             "max_volatility_60s": 0.0040,

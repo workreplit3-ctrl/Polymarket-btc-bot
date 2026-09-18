@@ -279,6 +279,7 @@ class Orchestrator:
             market_start_ts=market.start_ts,
             market_end_ts=end_ts,
             x_signal=x_signal,
+            current_entry_price=pos.entry_price if pos else None,
         )
         if x_signal.valid or self.cfg.x.enabled:
             signal.reason = f"{signal.reason}; X {x_signal.summary}"

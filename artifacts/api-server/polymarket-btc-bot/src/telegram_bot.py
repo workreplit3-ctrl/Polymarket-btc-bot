@@ -318,6 +318,8 @@ class TelegramBot:
             f"  tick: {s.tick_interval_sec}s  entry_window: "
             f"{s.min_seconds_remaining_for_entry}-{s.max_seconds_remaining_for_entry}s\n"
             f"  entry_edge: {s.entry_edge_pct}  exit_edge: {s.exit_edge_pct}\n"
+            f"  take_profit: {s.take_profit_pct:.1%} net "
+            f"(cost buffer {s.take_profit_cost_buffer_pct:.1%})\n"
             f"  adverse_stop: {s.adverse_edge_stop_pct}\n"
             f"  max_vol_60s: {s.max_volatility_60s}\n"
             f"  token_range: {s.min_token_price}-{s.max_token_price}\n"
@@ -339,7 +341,8 @@ class TelegramBot:
         if len(ctx.args) < 2:
             await update.effective_message.reply_text(
                 "usage: /set <key> <value>\n"
-                "keys: entry_edge_pct, exit_edge_pct, adverse_edge_stop_pct, "
+                "keys: entry_edge_pct, exit_edge_pct, take_profit_pct, "
+                "take_profit_cost_buffer_pct, adverse_edge_stop_pct, "
                 "max_volatility_60s, per_trade_size_usdc, max_open_positions, "
                 "daily_loss_limit_usdc, max_total_exposure_usdc, loss_cooldown_sec, "
                 "post_trade_cooldown_sec, max_slippage_cents, tick_interval_sec"
