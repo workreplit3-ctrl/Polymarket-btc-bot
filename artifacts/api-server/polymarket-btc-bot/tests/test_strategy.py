@@ -247,7 +247,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.exit_edge_pct == 0.015
     assert cfg.strategy.take_profit_pct == pytest.approx(0.20)
     assert cfg.strategy.take_profit_cost_buffer_pct == pytest.approx(0.02)
-    assert cfg.strategy.adverse_edge_stop_pct == 0.10
+    assert cfg.strategy.adverse_edge_stop_pct == 0.06
     assert cfg.strategy.round_trip_cost_buffer_pct == 0.02
     assert cfg.strategy.x_confirming_edge_pct == 0.015
     assert cfg.strategy.x_min_confidence == 0.55

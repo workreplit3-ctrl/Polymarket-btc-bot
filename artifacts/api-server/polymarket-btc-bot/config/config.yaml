@@ -87,8 +87,8 @@ strategy:
   # entry, after the separate cost buffer below.
   take_profit_pct: 0.20       # 20% net target; allowed range: 5%-100%
   take_profit_cost_buffer_pct: 0.02  # estimated fees + spread + exit slippage
-  # Hard stop on edge against us
-  adverse_edge_stop_pct: 0.10
+  # Earlier hard stop on edge against us; lower threshold exits sooner.
+  adverse_edge_stop_pct: 0.06
 
   # Side preference: when the edge is exactly equal on both sides, prefer "YES Up".
   prefer_side: "UP"

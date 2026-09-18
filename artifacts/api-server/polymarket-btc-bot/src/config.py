@@ -230,7 +230,7 @@ def _build(raw: Dict[str, Any]) -> Config:
         take_profit_cost_buffer_pct=float(
             s.get("take_profit_cost_buffer_pct", 0.02)
         ),
-        adverse_edge_stop_pct=float(s.get("adverse_edge_stop_pct", 0.10)),
+        adverse_edge_stop_pct=float(s.get("adverse_edge_stop_pct", 0.06)),
         prefer_side=s.get("prefer_side", "UP"),
         max_volatility_60s=float(s.get("max_volatility_60s", 0.0040)),
         min_volatility_per_sec=float(s.get("min_volatility_per_sec", 0.00001)),
@@ -376,7 +376,7 @@ def empty_paper_config() -> Config:
             "exit_edge_pct": 0.015,
             "take_profit_pct": 0.20,
             "take_profit_cost_buffer_pct": 0.02,
-            "adverse_edge_stop_pct": 0.10,
+            "adverse_edge_stop_pct": 0.06,
             "prefer_side": "UP",
             "max_volatility_60s": 0.0040,
             "min_volatility_per_sec": 0.00001,
