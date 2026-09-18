@@ -357,6 +357,14 @@ class TelegramBot:
         except ValueError:
             val = raw_val
 
+        if key == "take_profit_pct":
+            if not isinstance(val, (int, float)) or not 0.05 <= val <= 1.0:
+                await update.effective_message.reply_text(
+                    "take_profit_pct must be between 0.05 and 1.00 "
+                    "(5%-100%)"
+                )
+                return
+
         # Apply to strategy or risk
         if hasattr(self.cfg.strategy, key):
             setattr(self.cfg.strategy, key, val)

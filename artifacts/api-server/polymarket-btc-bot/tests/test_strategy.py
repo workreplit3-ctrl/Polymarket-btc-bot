@@ -1,5 +1,6 @@
 import sys
 import time
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.btc_feed import BtcPriceAggregator
 from src.calibration import calibrated_probability
-from src.config import _build, empty_paper_config
+from src.config import ConfigError, _build, empty_paper_config
 from src.polymarket_client import OrderBook, OrderBookLevel
 from src.strategy import DivergenceStrategy, SignalAction
 from src.x_feed import XSignal
@@ -255,6 +256,29 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.calibration_market_logit_intercept == pytest.approx(0.0)
     assert cfg.strategy.calibration_market_logit_slope == pytest.approx(1.0)
     assert cfg.strategy.calibration_raw_model_weight == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("take_profit_pct", [0.05, 1.0])
+def test_take_profit_range_accepts_five_to_one_hundred_percent(
+    take_profit_pct,
+):
+    raw = deepcopy(empty_paper_config().raw)
+    raw["strategy"]["take_profit_pct"] = take_profit_pct
+
+    cfg = _build(raw)
+
+    assert cfg.strategy.take_profit_pct == take_profit_pct
+
+
+@pytest.mark.parametrize("take_profit_pct", [0.0499, 1.0001])
+def test_take_profit_range_rejects_values_outside_five_to_one_hundred_percent(
+    take_profit_pct,
+):
+    raw = deepcopy(empty_paper_config().raw)
+    raw["strategy"]["take_profit_pct"] = take_profit_pct
+
+    with pytest.raises(ConfigError, match="take_profit_pct"):
+        _build(raw)
 
 
 @pytest.mark.parametrize("side", ["UP", "DOWN"])

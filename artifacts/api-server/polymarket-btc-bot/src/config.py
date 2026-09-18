@@ -262,6 +262,15 @@ def _build(raw: Dict[str, Any]) -> Config:
         x_min_confidence=float(s.get("x_min_confidence", 0.55)),
         x_min_base_entry_edge_pct=float(s.get("x_min_base_entry_edge_pct", 0.15)),
     )
+    if not 0.05 <= strat.take_profit_pct <= 1.0:
+        raise ConfigError(
+            "strategy.take_profit_pct must be between 0.05 and 1.00 "
+            "(5%-100%)"
+        )
+    if strat.take_profit_cost_buffer_pct < 0:
+        raise ConfigError(
+            "strategy.take_profit_cost_buffer_pct cannot be negative"
+        )
 
     r = raw.get("risk", {})
     risk = RiskCfg(
