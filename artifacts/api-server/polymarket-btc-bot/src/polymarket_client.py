@@ -578,8 +578,8 @@ class PolymarketClient:
             # price; its builder emits the required 2/4-decimal amounts.
             target_amount = Decimal(str(price)) * Decimal(str(size))
             # The CLOB rejects marketable BUY amounts below $1.00. Round to
-            # cents and clamp the boundary so a $1 risk budget is not turned
-            # into a $0.99 request by decimal truncation or float noise.
+            # cents and clamp the boundary so the minimum CLOB amount is not
+            # turned into a $0.99 request by decimal truncation or float noise.
             buy_amount = float(
                 max(
                     Decimal("1.00"),

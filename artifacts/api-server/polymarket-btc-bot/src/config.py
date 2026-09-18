@@ -282,9 +282,9 @@ def _build(raw: Dict[str, Any]) -> Config:
     r = raw.get("risk", {})
     risk = RiskCfg(
         max_open_positions=int(r.get("max_open_positions", 1)),
-        per_trade_size_usdc=float(r.get("per_trade_size_usdc", 1.0)),
+        per_trade_size_usdc=float(r.get("per_trade_size_usdc", 2.0)),
         daily_loss_limit_usdc=float(r.get("daily_loss_limit_usdc", 2.0)),
-        max_total_exposure_usdc=float(r.get("max_total_exposure_usdc", 1.0)),
+        max_total_exposure_usdc=float(r.get("max_total_exposure_usdc", 2.0)),
         loss_cooldown_sec=int(r.get("loss_cooldown_sec", 600)),
         post_trade_cooldown_sec=int(r.get("post_trade_cooldown_sec", 60)),
         max_slippage_cents=float(r.get("max_slippage_cents", 0.02)),
@@ -404,9 +404,9 @@ def empty_paper_config() -> Config:
         },
         "risk": {
             "max_open_positions": 1,
-            "per_trade_size_usdc": 1.0,
+            "per_trade_size_usdc": 2.0,
             "daily_loss_limit_usdc": 2.0,
-            "max_total_exposure_usdc": 1.0,
+            "max_total_exposure_usdc": 2.0,
             "loss_cooldown_sec": 600,
             "post_trade_cooldown_sec": 60,
             "max_slippage_cents": 0.02,
