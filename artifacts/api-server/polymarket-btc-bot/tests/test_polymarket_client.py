@@ -152,6 +152,25 @@ def test_real_buy_order_uses_market_amount_precision_without_network() -> None:
     assert order_type is OrderType.FOK
 
 
+def test_real_buy_order_meets_polymarket_one_dollar_minimum() -> None:
+    client = object.__new__(PolymarketClient)
+    signer = RecordingSigner()
+    client._clob_signer = signer
+
+    asyncio.run(
+        client.place_order(
+            token_id="token-123",
+            side="BUY",
+            price=0.38,
+            size=1.0 / 0.38,
+        )
+    )
+
+    order_args, order_type = signer.market_calls[0]
+    assert order_args.amount == 1.0
+    assert order_type is OrderType.FOK
+
+
 def test_real_sell_order_keeps_limit_order_shape_without_network() -> None:
     """SELL orders continue using the regular limit-order API."""
     client = object.__new__(PolymarketClient)

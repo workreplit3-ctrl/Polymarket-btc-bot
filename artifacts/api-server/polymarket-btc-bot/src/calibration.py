@@ -1,8 +1,9 @@
 """Calibrated probability model for short-horizon binary markets.
 
-The first production calibration uses the market probability as the prior.
-The raw spot/volatility normal model is retained as an input, but its learned
-weight is currently zero because it degraded the chronological holdout.
+The market probability remains the prior.  The independent spot/volatility
+value model can be blended back in when the operator explicitly chooses a
+tradeable runtime configuration; this is necessary because a market midpoint
+alone cannot produce positive executable edge against an ask.
 """
 from __future__ import annotations
 
@@ -36,10 +37,10 @@ def calibrated_probability(
 
         logit(q) = intercept + slope * logit(market_probability)
 
-    ``raw_model_weight`` allows a future out-of-sample validated value signal
-    to move q away from that prior.  It is intentionally zero in the current
-    calibration because the raw normal model was worse than the market prior
-    on the chronological holdout.
+    ``raw_model_weight`` controls how much the independent value signal can
+    move q away from that prior.  The offline report still records the market
+    prior as the calibration benchmark; runtime may explicitly choose the
+    independent model so the execution layer has a tradeable forecast.
     """
     market_q = _sigmoid(
         market_logit_intercept

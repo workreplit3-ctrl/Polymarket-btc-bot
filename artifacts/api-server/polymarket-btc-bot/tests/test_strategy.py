@@ -106,6 +106,30 @@ def test_strategy_refuses_stale_market_start_price():
     assert "older than" in signal.reason
 
 
+def test_strategy_accepts_fresh_tick_just_after_market_start():
+    cfg = empty_paper_config()
+    feed = BtcPriceAggregator(cfg.btc_feeds)
+    now = time.time()
+    market_start = now - 2.0
+    feed._history.append(now - 1.0, 60000.0)
+    feed._binance_price = 60000.0
+    feed._binance_ts = now
+    feed._coinbase_price = 60000.0
+    feed._coinbase_ts = now
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    signal = strategy.evaluate(
+        _book("up"),
+        _book("down"),
+        current_position=None,
+        market_start_ts=market_start,
+        market_end_ts=now + 180.0,
+    )
+
+    assert signal.action == SignalAction.HOLD
+    assert "market start price" not in signal.reason
+
+
 def test_strategy_refuses_crossed_orderbook():
     cfg = empty_paper_config()
     feed, start_ts, end_ts = _feed()
@@ -211,8 +235,8 @@ def _configured_strategy():
 
 def test_configured_entry_thresholds_preserve_other_limits():
     cfg = _configured_strategy()
-    assert cfg.strategy.entry_edge_pct == pytest.approx(0.15)
-    assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.15)
+    assert cfg.strategy.entry_edge_pct == pytest.approx(0.084)
+    assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.07)
     assert cfg.x.min_base_entry_edge_pct == cfg.strategy.x_min_base_entry_edge_pct
     assert cfg.risk.per_trade_size_usdc == 1
     assert cfg.risk.max_total_exposure_usdc == 4
@@ -228,16 +252,16 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.max_seconds_remaining_for_entry == 270
     assert cfg.strategy.calibration_market_logit_intercept == pytest.approx(0.0)
     assert cfg.strategy.calibration_market_logit_slope == pytest.approx(1.0)
-    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.0)
+    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize("side", ["UP", "DOWN"])
 @pytest.mark.parametrize(
     "ask,x_direction,remaining,opens",
     [
-        (0.39, None, 180, False),      # Old low threshold is no longer enough.
+        (0.39, None, 180, True),       # Restored independent value model.
         (0.397, None, 180, False),
-        (0.409, "confirm", 180, False), # X cannot rescue a weak calibrated edge.
+        (0.409, "confirm", 180, True),
         (0.411, "confirm", 180, False),
         (0.39, "conflict", 180, False),
         (0.39, None, 60, False),      # Entry window is unchanged.
@@ -293,10 +317,10 @@ def test_calibrated_value_gap_can_open_only_on_a_large_edge():
         market_end_ts=time.time() + 180,
     )
 
-    # With the calibrated prior, a 0.10 ask still does not clear the
-    # production 15-point threshold; the Down case below does.
-    assert up_signal.action == SignalAction.HOLD
-    assert down_signal.action == SignalAction.OPEN_DOWN
+    # The independent value model can now create an executable edge against
+    # the ask on both sides; midpoint-only calibration could not do this.
+    assert up_signal.action == SignalAction.OPEN_UP
+    assert down_signal.action == SignalAction.OPEN_UP
 
 
 def test_exit_does_not_trigger_on_midpoint_edge_collapse_alone():

@@ -15,7 +15,7 @@ import inspect
 import re
 import time
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -576,9 +576,16 @@ class PolymarketClient:
             # 3.9988 from a $4 target, which the API rejects. Use the
             # market-order API with the current ask as its explicit limit
             # price; its builder emits the required 2/4-decimal amounts.
+            target_amount = Decimal(str(price)) * Decimal(str(size))
+            # The CLOB rejects marketable BUY amounts below $1.00. Round to
+            # cents and clamp the boundary so a $1 risk budget is not turned
+            # into a $0.99 request by decimal truncation or float noise.
             buy_amount = float(
-                (Decimal(str(price)) * Decimal(str(size))).quantize(
-                    Decimal("0.01"), rounding=ROUND_DOWN
+                max(
+                    Decimal("1.00"),
+                    target_amount.quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    ),
                 )
             )
             if buy_amount <= 0:

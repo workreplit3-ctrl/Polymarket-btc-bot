@@ -139,21 +139,32 @@ class BtcPriceAggregator:
     def price_at(
         self, ts: float, max_age_sec: Optional[float] = None
     ) -> Optional[float]:
-        """Return a recent observed feed price at or before ``ts``.
+        """Return the feed price nearest to ``ts`` within the age guard.
 
-        A market start price is only useful when it was observed close to the
-        actual start.  Without the optional age guard, a feed outage around
-        the boundary could reuse an arbitrarily old price and manufacture
-        drift.
+        Prefer the latest observation at or before ``ts``.  If the process
+        started just after a market boundary, allow the first observation
+        after ``ts`` when it is within the same guard.  This avoids rejecting
+        a fresh boundary price solely because the websocket connected a few
+        seconds late; it still cannot fall back to an old generic lookback.
         """
         if ts <= 0:
             return None
-        for observed_ts, price in reversed(self._history.data):
-            if observed_ts > ts:
-                continue
-            if max_age_sec is not None and ts - observed_ts > max_age_sec:
-                return None
-            return price
+        before: Optional[tuple[float, float]] = None
+        after: Optional[tuple[float, float]] = None
+        for observed_ts, price in self._history.data:
+            if observed_ts <= ts:
+                before = (observed_ts, price)
+            elif after is None:
+                after = (observed_ts, price)
+
+        if before is not None:
+            age = ts - before[0]
+            if max_age_sec is None or age <= max_age_sec:
+                return before[1]
+        if after is not None:
+            age = after[0] - ts
+            if max_age_sec is None or age <= max_age_sec:
+                return after[1]
         return None
 
     # ----- lifecycle -------------------------------------------------
