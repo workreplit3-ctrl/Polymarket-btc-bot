@@ -17,6 +17,7 @@ import asyncio
 import json
 import math
 import signal
+import sys
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -24,6 +25,10 @@ from pathlib import Path
 from typing import Any, Optional
 
 import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.btc_feed import BtcPriceAggregator
 from src.config import _build
