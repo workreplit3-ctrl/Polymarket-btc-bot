@@ -110,14 +110,14 @@ strategy:
   round_trip_cost_buffer_pct: 0.02
   # Refuse a market if the BTC tick used for its start price is older than this.
   max_market_start_age_sec: 10
-  # Balanced blend: keep market data as the anchor while allowing the BTC
-  # value signal to contribute enough for regular, well-supported entries.
+  # Keep the market prior as the runtime baseline until the independent BTC
+  # value signal passes a chronological, execution-aware holdout.
   calibration_market_logit_intercept: 0.0
   calibration_market_logit_slope: 1.0
-  calibration_raw_model_weight: 0.60
-  # Explicitly enabled by the operator after confirming the $1 risk limit.
-  # Existing reconciliation, pause, risk, and FOK checks still apply.
-  real_entries_enabled: true
+  calibration_raw_model_weight: 0.0
+  # New real entries stay disabled until calibrated paper validation passes.
+  # Existing reconciliation, exits, risk, and FOK checks remain active.
+  real_entries_enabled: false
   # X can only confirm a near-threshold BTC model edge; it cannot create
   # an entry by itself.
   x_confirming_edge_pct: 0.015

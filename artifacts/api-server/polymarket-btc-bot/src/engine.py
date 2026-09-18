@@ -134,7 +134,19 @@ class TradingEngine:
             slug=market.slug, side=side, action="OPEN",
             price=fill_price, size_shares=filled_shares, size_usdc=actual_size_usdc,
             order_id=order_id, order_status=order_status,
-            raw={"signal_reason": signal.reason, "order_status": order_status},
+            raw={
+                "signal_reason": signal.reason,
+                "order_status": order_status,
+                "token_id": (
+                    market.outcome_up_token_id
+                    if side == "UP"
+                    else market.outcome_down_token_id
+                ),
+                "requested_size_shares": size_shares,
+                "filled_size_shares": filled_shares,
+                "requested_price": ba.price,
+                "fill_price": fill_price,
+            },
         )
         if self.cfg.mode == "paper":
             self.paper_balance -= size_usdc
@@ -196,7 +208,16 @@ class TradingEngine:
             price=fill_price, size_shares=closed.size_shares,
             size_usdc=closed.size_usdc, pnl=closed.pnl_usdc,
             order_id=order_id, order_status=order_status,
-            raw={"reason": signal.reason, "order_status": order_status},
+            raw={
+                "reason": signal.reason,
+                "order_status": order_status,
+                "token_id": pos.token_id,
+                "requested_size_shares": pos.size_shares,
+                "filled_size_shares": filled_shares,
+                "requested_price": bb.price,
+                "fill_price": fill_price,
+                "entry_price": pos.entry_price,
+            },
         )
         if self.cfg.mode == "paper":
             self.paper_balance += closed.size_usdc + closed.pnl_usdc

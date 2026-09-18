@@ -243,7 +243,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.risk.max_total_exposure_usdc == 4
     assert cfg.risk.daily_loss_limit_usdc == 20
     assert cfg.risk.max_open_positions == 1
-    assert cfg.strategy.real_entries_enabled is True
+    assert cfg.strategy.real_entries_enabled is False
     assert cfg.strategy.exit_edge_pct == 0.015
     assert cfg.strategy.take_profit_pct == pytest.approx(0.20)
     assert cfg.strategy.take_profit_cost_buffer_pct == pytest.approx(0.02)
@@ -256,7 +256,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.strategy.max_seconds_remaining_for_entry == 270
     assert cfg.strategy.calibration_market_logit_intercept == pytest.approx(0.0)
     assert cfg.strategy.calibration_market_logit_slope == pytest.approx(1.0)
-    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.60)
+    assert cfg.strategy.calibration_raw_model_weight == pytest.approx(0.0)
 
 
 @pytest.mark.parametrize("take_profit_pct", [0.05, 1.0])
@@ -324,7 +324,7 @@ def test_configured_entry_behavior(side, ask, x_direction, remaining, opens):
     assert signal.action == expected
 
 
-def test_calibrated_value_gap_can_open_only_on_a_large_edge():
+def test_unvalidated_raw_model_does_not_create_executable_entry():
     cfg = _configured_strategy()
     feed, start_ts, _ = _feed()
     strategy = DivergenceStrategy(cfg.strategy, feed)
@@ -344,9 +344,10 @@ def test_calibrated_value_gap_can_open_only_on_a_large_edge():
         market_end_ts=time.time() + 180,
     )
 
-    # A large value gap can still create an executable edge, but the market
-    # prior now dampens the raw model instead of treating it as certainty.
-    assert up_signal.action == SignalAction.OPEN_UP
+    # With the raw model disabled, the market prior cannot manufacture an
+    # UP edge against its ask; the synthetic DOWN book still has a genuine
+    # executable market-prior edge.
+    assert up_signal.action == SignalAction.HOLD
     assert down_signal.action == SignalAction.OPEN_DOWN
 
 
