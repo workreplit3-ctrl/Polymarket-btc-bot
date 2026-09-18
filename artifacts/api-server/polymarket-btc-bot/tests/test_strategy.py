@@ -244,6 +244,8 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.risk.max_open_positions == 1
     assert cfg.strategy.real_entries_enabled is True
     assert cfg.strategy.exit_edge_pct == 0.015
+    assert cfg.strategy.take_profit_pct == pytest.approx(0.12)
+    assert cfg.strategy.take_profit_cost_buffer_pct == pytest.approx(0.02)
     assert cfg.strategy.adverse_edge_stop_pct == 0.10
     assert cfg.strategy.round_trip_cost_buffer_pct == 0.02
     assert cfg.strategy.x_confirming_edge_pct == 0.015
@@ -355,3 +357,33 @@ def test_exit_uses_executable_bid_against_calibrated_hold_value():
 
     assert signal.action == SignalAction.EXIT
     assert "sell bid exceeds calibrated hold value" in signal.reason
+
+
+def test_take_profit_uses_entry_price_and_cost_buffer():
+    cfg = empty_paper_config()
+    cfg.strategy.exit_edge_pct = 0.50
+    cfg.strategy.adverse_edge_stop_pct = 0.50
+    feed, start_ts, end_ts = _feed()
+    strategy = DivergenceStrategy(cfg.strategy, feed)
+
+    profitable = strategy.evaluate(
+        _book("up", bid=0.57, ask=0.58),
+        _book("down", bid=0.42, ask=0.44),
+        current_position="UP",
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+        current_entry_price=0.50,
+    )
+    not_yet_profitable = strategy.evaluate(
+        _book("up", bid=0.55, ask=0.56),
+        _book("down", bid=0.42, ask=0.44),
+        current_position="UP",
+        market_start_ts=start_ts,
+        market_end_ts=end_ts,
+        current_entry_price=0.50,
+    )
+
+    assert profitable.action == SignalAction.EXIT
+    assert "take-profit target reached" in profitable.reason
+    assert "net=12.00%" in profitable.reason
+    assert not_yet_profitable.action == SignalAction.HOLD

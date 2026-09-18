@@ -80,6 +80,7 @@ class DivergenceStrategy:
         market_start_ts: Optional[float] = None,
         market_end_ts: Optional[float] = None,
         x_signal: Optional[XSignal] = None,
+        current_entry_price: Optional[float] = None,
     ) -> Signal:
         now = time.time()
 
@@ -221,15 +222,39 @@ class DivergenceStrategy:
 
         # --- exit logic (if we have a position) -----------------------
         if current_position == "UP":
-            # Sell only when the executable bid is worth more than our
-            # calibrated hold value.  A temporary mid-price edge collapse is
-            # not enough reason to pay the spread and realize a loss.
+            up_bid = up_book.best_bid()
+            if (
+                up_bid is not None
+                and current_entry_price is not None
+                and current_entry_price > 0
+            ):
+                gross_return = up_bid.price / current_entry_price - 1.0
+                net_return = (
+                    gross_return - self.cfg.take_profit_cost_buffer_pct
+                )
+                if net_return + 1e-9 >= self.cfg.take_profit_pct:
+                    return Signal(
+                        action=SignalAction.EXIT, btc_price=consensus.mid,
+                        btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
+                        market_prob_up=market_prob_up, edge=edge,
+                        abs_edge=abs_edge,
+                        reason=(
+                            f"take-profit target reached "
+                            f"(net={net_return:.2%}, "
+                            f"target={self.cfg.take_profit_pct:.2%}, "
+                            f"bid={up_bid.price:.4f}, "
+                            f"entry={current_entry_price:.4f}, "
+                            f"cost buffer={self.cfg.take_profit_cost_buffer_pct:.2%})"
+                        ),
+                        ts=now,
+                    )
+            # A temporary mid-price edge collapse is not enough to pay the
+            # spread, but a hard adverse edge still protects against reversal.
             if edge <= -self.cfg.adverse_edge_stop_pct:
                 return Signal(action=SignalAction.EXIT, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                               market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                               reason=f"adverse edge stop ({edge:+.4f})", ts=now)
-            up_bid = up_book.best_bid()
             if (
                 up_bid is not None
                 and up_bid.price - our_prob_up >= self.cfg.exit_edge_pct
@@ -247,13 +272,37 @@ class DivergenceStrategy:
                           reason="holding UP", ts=now)
 
         if current_position == "DOWN":
-            # Same value comparison for the Down token.
+            down_bid = down_book.best_bid()
+            if (
+                down_bid is not None
+                and current_entry_price is not None
+                and current_entry_price > 0
+            ):
+                gross_return = down_bid.price / current_entry_price - 1.0
+                net_return = (
+                    gross_return - self.cfg.take_profit_cost_buffer_pct
+                )
+                if net_return + 1e-9 >= self.cfg.take_profit_pct:
+                    return Signal(
+                        action=SignalAction.EXIT, btc_price=consensus.mid,
+                        btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
+                        market_prob_up=market_prob_up, edge=edge,
+                        abs_edge=abs_edge,
+                        reason=(
+                            f"take-profit target reached "
+                            f"(net={net_return:.2%}, "
+                            f"target={self.cfg.take_profit_pct:.2%}, "
+                            f"bid={down_bid.price:.4f}, "
+                            f"entry={current_entry_price:.4f}, "
+                            f"cost buffer={self.cfg.take_profit_cost_buffer_pct:.2%})"
+                        ),
+                        ts=now,
+                    )
             if edge >= self.cfg.adverse_edge_stop_pct:
                 return Signal(action=SignalAction.EXIT, btc_price=consensus.mid,
                               btc_drift_pct=drift_pct, our_prob_up=our_prob_up,
                               market_prob_up=market_prob_up, edge=edge, abs_edge=abs_edge,
                               reason=f"adverse edge stop ({edge:+.4f})", ts=now)
-            down_bid = down_book.best_bid()
             down_hold_value = 1.0 - our_prob_up
             if (
                 down_bid is not None
