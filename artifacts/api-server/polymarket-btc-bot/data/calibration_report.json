@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-09-18T11:28:28.191388+00:00",
+  "markets": {
+    "selected": 711,
+    "resolved": 711,
+    "train": 497,
+    "test": 214,
+    "up_rate": 0.509142053445851
+  },
+  "chronological_holdout": {
+    "raw_logged_probability": {
+      "brier": 0.19368802208421482,
+      "log_loss": 0.5866908248138183,
+      "accuracy": 0.7289719626168224
+    },
+    "market_mid_probability": {
+      "brier": 0.18884544392523375,
+      "log_loss": 0.5584546303549663,
+      "accuracy": 0.7242990654205608
+    },
+    "calibrated_market_probability": {
+      "brier": 0.18963381061686604,
+      "log_loss": 0.56100012651967,
+      "accuracy": 0.7289719626168224
+    }
+  },
+  "runtime_parameters": {
+    "calibration_market_logit_intercept": 0.0,
+    "calibration_market_logit_slope": 1.0,
+    "calibration_raw_model_weight": 0.0
+  },
+  "fitted_candidate": {
+    "calibration_market_logit_intercept": 0.05979510280975081,
+    "calibration_market_logit_slope": 1.0999896803049312
+  },
+  "warning": "Do not enable real entries from this report alone; require a larger rolling sample and paper out-of-sample confirmation."
+}

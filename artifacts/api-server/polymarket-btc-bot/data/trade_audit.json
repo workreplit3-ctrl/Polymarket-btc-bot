@@ -1,0 +1,625 @@
+{
+  "anomalies": [
+    {
+      "status": null,
+      "trade_id": 9,
+      "type": "non_fill_recorded_as_trade"
+    },
+    {
+      "available_shares": 12.5,
+      "close_shares": 14.2857,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789597200",
+      "trade_id": 37,
+      "type": "close_exceeds_recorded_inventory"
+    },
+    {
+      "available_shares": 7.2727272727272725,
+      "close_shares": 7.3888,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789604400",
+      "trade_id": 39,
+      "type": "close_exceeds_recorded_inventory"
+    },
+    {
+      "available_shares": 1.5873015873015872,
+      "close_shares": 1.6129,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789713600",
+      "trade_id": 56,
+      "type": "close_exceeds_recorded_inventory"
+    },
+    {
+      "available_shares": 3.4482758620689657,
+      "close_shares": 3.5714,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789718100",
+      "trade_id": 66,
+      "type": "close_exceeds_recorded_inventory"
+    },
+    {
+      "available_shares": 3.125,
+      "close_shares": 3.2608,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789727400",
+      "trade_id": 78,
+      "type": "close_exceeds_recorded_inventory"
+    },
+    {
+      "close_shares": 1.1428,
+      "entry_price_in_raw": null,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789728300",
+      "trade_id": 81,
+      "type": "close_without_recorded_open"
+    },
+    {
+      "available_shares": 1.7857142857142856,
+      "close_shares": 1.923,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789729200",
+      "trade_id": 85,
+      "type": "close_exceeds_recorded_inventory"
+    }
+  ],
+  "markets": [
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x2e1c9481fb9b427789a345b047580a676f208f6842494e1ca7a8af493cfd8a39",
+      "open_shares": 80.0,
+      "pnl": 0.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789409400"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0xdf7ef128fbabd8414ce860cfcdbacbdc01a083e93dc98249308012c2bc69d7d7",
+      "open_shares": 200.0,
+      "pnl": 0.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789444200"
+    },
+    {
+      "close_shares": 25.0,
+      "condition_id": "0x10eb67df639fe0f495584cc2c0f41b46eddd0ea07742fdc045cfcd193972fa6a",
+      "open_shares": 25.0,
+      "pnl": 4.25,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789446300"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x10eb67df639fe0f495584cc2c0f41b46eddd0ea07742fdc045cfcd193972fa6a",
+      "open_shares": 200.0,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789446300"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x4d1247f210722ce70f573988062e175b19655310973c7b48e18edb9d8b09bff2",
+      "open_shares": 8.0,
+      "pnl": 0.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789446600"
+    },
+    {
+      "close_shares": 1.25,
+      "condition_id": "0x341dba10c0dd5c7c5e7a09ed49fd9ccf7ad7b842570f8e767c93b071579b0a39",
+      "open_shares": 1.25,
+      "pnl": 0.22499999999999992,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789489200"
+    },
+    {
+      "close_shares": 12.5,
+      "condition_id": "0xf8a664a547f5d338f201e89f16d1531f17e26bbeff435223b85e5e7eedce0952",
+      "open_shares": 12.5,
+      "pnl": 8.249999999999998,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789491300"
+    },
+    {
+      "close_shares": 4.705882352941177,
+      "condition_id": "0x4faad165cc0a1020d28f300f1ff8215a3d52d97116fd10a16af178f519daa3ae",
+      "open_shares": 4.705882352941177,
+      "pnl": 0.611764705882353,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789494900"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0xac541ed16a1b76c8caa7b058a4ea7f5336e4cf7ef7154c09699c86ed0b0786e5",
+      "open_shares": 4.938271604938271,
+      "pnl": 0.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789495500"
+    },
+    {
+      "close_shares": 9.090909090909092,
+      "condition_id": "0x3c11fb58fa0ad9578edd9a73274944b1c2aedcc7c0042157a2591247f98b9164",
+      "open_shares": 9.090909090909092,
+      "pnl": -2.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789500900"
+    },
+    {
+      "close_shares": 4.878048780487805,
+      "condition_id": "0xcb91cefd7636211135b5dfac02075e6412cd88637f1110a5644f01939a39616d",
+      "open_shares": 4.878048780487805,
+      "pnl": -0.9268292682926826,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789526400"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0xfa39b2ca760a76d20ad8237652f780dc6dd504d0354aa1244f7b53fe1c95aa5a",
+      "open_shares": 6.153846153846153,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789527900"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x5a4d5083fd6c6e090d9258fd84007ccec1dab982b35aeb920d762ac90d5b4db2",
+      "open_shares": 22.22222222222222,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789540800"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x191a754c23ea0c1d99806e276dcdef4fc889b9df96d68a7bbd754cab93b4315b",
+      "open_shares": 6.153846153846153,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789554600"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0xfaa318ff89c4d1d9bba75259bea54c8732a7b45de20202971929a2d6b5c158c2",
+      "open_shares": 7.547169811320754,
+      "pnl": 0.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789568400"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x932d1f43ba2ff7d328985b13d6901569b7ba2c0fd3ee3fb481fbb9a10eb5dc4c",
+      "open_shares": 5.2631578947368425,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789578300"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x93dbaf8c21d982d5c2513245640297e13a533c5ab0ea9c593145f0d58848a9cb",
+      "open_shares": 19.047619047619047,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789578900"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x99bba18e4427bbe776a6370b70461766f8e937b1f6fe57279c24ebc85cc1a5cd",
+      "open_shares": 13.333333333333334,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789582800"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x6ee927577704a0bfa254fcf9021df4a419ef7ab6421043116725e8628d49cbda",
+      "open_shares": 23.52941176470588,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789587300"
+    },
+    {
+      "close_shares": 7.673,
+      "condition_id": "0x1e00acd1445ef01cbcef5622b8c5ca282fcfba12819b7fefed2e2c123cd0ba1e",
+      "open_shares": 7.692307692307692,
+      "pnl": -2.1476727,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789596300"
+    },
+    {
+      "close_shares": 14.2857,
+      "condition_id": "0xf1737476224da9457730c31ef950679cdf928701f6db8be1c6b5f6470d84d1b7",
+      "open_shares": 12.5,
+      "pnl": -3.2842824299999998,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789597200"
+    },
+    {
+      "close_shares": 7.3888,
+      "condition_id": "0xba86a84588038b8f4193eef51d0d0c29fa892735d0b79ac9f5c04de88635c513",
+      "open_shares": 7.2727272727272725,
+      "pnl": -1.1075811200000003,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789604400"
+    },
+    {
+      "close_shares": 5.0,
+      "condition_id": "0xf7781c90d41877fd35e0c783b173ab347ed1254d892c42ef449745346f9cd7f9",
+      "open_shares": 5.0,
+      "pnl": -0.6,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789605000"
+    },
+    {
+      "close_shares": 4.6511,
+      "condition_id": "0x72c5f8ec41827cfccfe986a3c8f80eed16e0cb413803554ee775524ffd31171f",
+      "open_shares": 4.651162790697675,
+      "pnl": -0.13906789000000017,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789605900"
+    },
+    {
+      "close_shares": 8.0,
+      "condition_id": "0x98dc7e42d6cd6fb42f733aac134a3939300dc0f02159dd319f1731a2c32038e2",
+      "open_shares": 8.0,
+      "pnl": -3.2800000000000002,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789607100"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x3606ffbb56c1207813fb990fad9a792f8a4bafa889f16cd835a3f9d75a1a35b4",
+      "open_shares": 2.6315789473684212,
+      "pnl": 0.0,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789705500"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0xd3f176692b0d009c100614bc037be0e356bc882cdc62d301be15f09afd907655",
+      "open_shares": 1.1904761904761905,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789706400"
+    },
+    {
+      "close_shares": 4.7619,
+      "condition_id": "0xd90068d09040d85d444e080fb8a2e12912c6059df1d09a942166178b8ada193b",
+      "open_shares": 4.761904761904762,
+      "pnl": 0.28619019000000007,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789707900"
+    },
+    {
+      "close_shares": 2.6315789473684212,
+      "condition_id": "0xead21f528168dcd7e4442b210b1ed64f247782f4b09df5691ef3d670e474e01a",
+      "open_shares": 2.6315789473684212,
+      "pnl": 0.15789473684210528,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789708500"
+    },
+    {
+      "close_shares": 1.4705,
+      "condition_id": "0x1f0a8b14fb5689dbfaeb476cd2aa39bf8e6cdb4580386655e4f6f8bd3851875c",
+      "open_shares": 1.4705882352941175,
+      "pnl": -0.8968579499999998,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789710900"
+    },
+    {
+      "close_shares": 0.0,
+      "condition_id": "0x2c095e6ce1423065e4c343c4625650b3234d9106d7927e90e1f08643349d3feb",
+      "open_shares": 1.2987012987012987,
+      "pnl": 0.0,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789712400"
+    },
+    {
+      "close_shares": 1.6129,
+      "condition_id": "0x4b768d415e02dab26f98985bfa28efb822c475e74adc18c84ca4a18dccffb761",
+      "open_shares": 1.5873015873015872,
+      "pnl": 0.24209629000000002,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789713600"
+    },
+    {
+      "close_shares": 1.923,
+      "condition_id": "0x7873913678be5e5c9a13bd448b24dbde7cff062e30c2d07a18a05c76446aaa6f",
+      "open_shares": 1.923076923076923,
+      "pnl": 0.2694123,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789713900"
+    },
+    {
+      "close_shares": 2.7027,
+      "condition_id": "0x06c18bebbc5642142b29ccbf90f031e6f4a5e07ced1f6c6bee9b647b711cbabb",
+      "open_shares": 2.7027027027027026,
+      "pnl": 0.4597292700000001,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789714200"
+    },
+    {
+      "close_shares": 1.8867,
+      "condition_id": "0x56f4683f5b56da076db7bab822a775a6ed19e3d495eefda551204e441efc2324",
+      "open_shares": 1.8867924528301885,
+      "pnl": 0.22659266999999997,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789716300"
+    },
+    {
+      "close_shares": 2.5641,
+      "condition_id": "0x7dcd6c8d3efacfa27b51f73490fe56dfad47937ee9d85d086d2d3ff07a74d921",
+      "open_shares": 2.564102564102564,
+      "pnl": 0.23102540999999988,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789716900"
+    },
+    {
+      "close_shares": 3.5714,
+      "condition_id": "0x442096e835b8de99a5177b2f965000e966354762f7862cee49d0c3031a668d63",
+      "open_shares": 3.4482758620689657,
+      "pnl": 0.46463914,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789718100"
+    },
+    {
+      "close_shares": 2.985,
+      "condition_id": "0xeb784b8a94a6a696043c93db1a98dbdf6f72adf554ed135125fecef37985e2f0",
+      "open_shares": 2.9850746268656714,
+      "pnl": 0.4480484999999997,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789718400"
+    },
+    {
+      "close_shares": 7.692307692307692,
+      "condition_id": "0x51af1a4809857138c4b9b7734467569279b30706dad8552e6a8bce629df7d99b",
+      "open_shares": 7.692307692307692,
+      "pnl": -0.23076923076923073,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789719300"
+    },
+    {
+      "close_shares": 4.3478,
+      "condition_id": "0x9b648186678fd48950b6d480123174c89089fccec0cd44c6301fa344332eb790",
+      "open_shares": 4.3478260869565215,
+      "pnl": -0.47782322000000005,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789721100"
+    },
+    {
+      "close_shares": 5.88235294117647,
+      "condition_id": "0xfaa53f8ea020fe4d4ec25709665bf52ea705769016682719d07359436a74d6d8",
+      "open_shares": 5.88235294117647,
+      "pnl": 0.47058823529411736,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789722900"
+    },
+    {
+      "close_shares": 5.5555,
+      "condition_id": "0x7ecda1719af74b21f235792df37f45dfea3f171171bdee3c653a691bbd6e51c5",
+      "open_shares": 5.555555555555555,
+      "pnl": -0.33277445000000005,
+      "side": "UP",
+      "slug": "btc-updown-5m-1789724400"
+    },
+    {
+      "close_shares": 3.2608,
+      "condition_id": "0xad6e548756721b2aa4d93421dc51a807e4e33109a6893f09d20a50d8764438f0",
+      "open_shares": 3.125,
+      "pnl": -0.16271392,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789727400"
+    },
+    {
+      "close_shares": 7.1428,
+      "condition_id": "0x69207f13acff3282f85d59a570ebe14531f565854cde22b49cb0d338c75359c0",
+      "open_shares": 6.0,
+      "pnl": -0.5713097199999999,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789728300"
+    },
+    {
+      "close_shares": 1.3513,
+      "condition_id": "0x5aff02bad0eadf8dc9c693444154adb187163fa9ba2e29058fc804f3e7456332",
+      "open_shares": 1.3513513513513513,
+      "pnl": 0.16229112999999998,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789728900"
+    },
+    {
+      "close_shares": 1.923,
+      "condition_id": "0x012fdaf9907a3cef3256286cfd15f3a908ec47822fcabea8b709673aaede3dfa",
+      "open_shares": 1.7857142857142856,
+      "pnl": -0.7113177,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789729200"
+    },
+    {
+      "close_shares": 4.166666666666667,
+      "condition_id": "0x648e55ccea5380cb8cedf3288a3e00d8bde7c71cde7072457ce95c9871530664",
+      "open_shares": 4.166666666666667,
+      "pnl": -0.3333333333333333,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789730100"
+    },
+    {
+      "close_shares": 1.6666666666666667,
+      "condition_id": "0x4a57cb8130ada5d327725febf155e6a15a7978805b42ad62b0ad90eb02e5f504",
+      "open_shares": 1.6666666666666667,
+      "pnl": -0.3,
+      "side": "DOWN",
+      "slug": "btc-updown-5m-1789730700"
+    }
+  ],
+  "missing_order_ids": [],
+  "status": "review_required",
+  "total_realized_pnl_usdc": -0.7470603543766727,
+  "trades": 81,
+  "unmatched_open_inventory": [
+    {
+      "condition_id": "0x2e1c9481fb9b427789a345b047580a676f208f6842494e1ca7a8af493cfd8a39",
+      "cost_basis_usdc": 4.0,
+      "shares": 80.0,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0xdf7ef128fbabd8414ce860cfcdbacbdc01a083e93dc98249308012c2bc69d7d7",
+      "cost_basis_usdc": 4.0,
+      "shares": 200.0,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x10eb67df639fe0f495584cc2c0f41b46eddd0ea07742fdc045cfcd193972fa6a",
+      "cost_basis_usdc": 4.0,
+      "shares": 200.0,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x4d1247f210722ce70f573988062e175b19655310973c7b48e18edb9d8b09bff2",
+      "cost_basis_usdc": 4.0,
+      "shares": 8.0,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0xac541ed16a1b76c8caa7b058a4ea7f5336e4cf7ef7154c09699c86ed0b0786e5",
+      "cost_basis_usdc": 4.0,
+      "shares": 4.938271604938271,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0xfa39b2ca760a76d20ad8237652f780dc6dd504d0354aa1244f7b53fe1c95aa5a",
+      "cost_basis_usdc": 4.0,
+      "shares": 6.153846153846153,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x5a4d5083fd6c6e090d9258fd84007ccec1dab982b35aeb920d762ac90d5b4db2",
+      "cost_basis_usdc": 3.9999999999999996,
+      "shares": 22.22222222222222,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x191a754c23ea0c1d99806e276dcdef4fc889b9df96d68a7bbd754cab93b4315b",
+      "cost_basis_usdc": 4.0,
+      "shares": 6.153846153846153,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0xfaa318ff89c4d1d9bba75259bea54c8732a7b45de20202971929a2d6b5c158c2",
+      "cost_basis_usdc": 4.0,
+      "shares": 7.547169811320754,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x932d1f43ba2ff7d328985b13d6901569b7ba2c0fd3ee3fb481fbb9a10eb5dc4c",
+      "cost_basis_usdc": 4.0,
+      "shares": 5.2631578947368425,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x93dbaf8c21d982d5c2513245640297e13a533c5ab0ea9c593145f0d58848a9cb",
+      "cost_basis_usdc": 4.0,
+      "shares": 19.047619047619047,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x99bba18e4427bbe776a6370b70461766f8e937b1f6fe57279c24ebc85cc1a5cd",
+      "cost_basis_usdc": 4.0,
+      "shares": 13.333333333333334,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x6ee927577704a0bfa254fcf9021df4a419ef7ab6421043116725e8628d49cbda",
+      "cost_basis_usdc": 4.0,
+      "shares": 23.52941176470588,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x1e00acd1445ef01cbcef5622b8c5ca282fcfba12819b7fefed2e2c123cd0ba1e",
+      "cost_basis_usdc": 0.010040000000000049,
+      "shares": 0.019307692307691582,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x72c5f8ec41827cfccfe986a3c8f80eed16e0cb413803554ee775524ffd31171f",
+      "cost_basis_usdc": 5.400000000044258e-05,
+      "shares": 6.279069767511913e-05,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x3606ffbb56c1207813fb990fad9a792f8a4bafa889f16cd835a3f9d75a1a35b4",
+      "cost_basis_usdc": 1.0,
+      "shares": 2.6315789473684212,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0xd3f176692b0d009c100614bc037be0e356bc882cdc62d301be15f09afd907655",
+      "cost_basis_usdc": 1.0,
+      "shares": 1.1904761904761905,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0xd90068d09040d85d444e080fb8a2e12912c6059df1d09a942166178b8ada193b",
+      "cost_basis_usdc": 1.0000000000287557e-06,
+      "shares": 4.761904762062841e-06,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x1f0a8b14fb5689dbfaeb476cd2aa39bf8e6cdb4580386655e4f6f8bd3851875c",
+      "cost_basis_usdc": 5.999999999994898e-05,
+      "shares": 8.823529411761122e-05,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x2c095e6ce1423065e4c343c4625650b3234d9106d7927e90e1f08643349d3feb",
+      "cost_basis_usdc": 1.0,
+      "shares": 1.2987012987012987,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x7873913678be5e5c9a13bd448b24dbde7cff062e30c2d07a18a05c76446aaa6f",
+      "cost_basis_usdc": 3.999999999992898e-05,
+      "shares": 7.692307692286349e-05,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x06c18bebbc5642142b29ccbf90f031e6f4a5e07ced1f6c6bee9b647b711cbabb",
+      "cost_basis_usdc": 1.0000000000287557e-06,
+      "shares": 2.70270270252837e-06,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0x56f4683f5b56da076db7bab822a775a6ed19e3d495eefda551204e441efc2324",
+      "cost_basis_usdc": 4.899999999996574e-05,
+      "shares": 9.245283018843864e-05,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x7dcd6c8d3efacfa27b51f73490fe56dfad47937ee9d85d086d2d3ff07a74d921",
+      "cost_basis_usdc": 1.0000000000287557e-06,
+      "shares": 2.5641025640510406e-06,
+      "side": "DOWN"
+    },
+    {
+      "condition_id": "0xeb784b8a94a6a696043c93db1a98dbdf6f72adf554ed135125fecef37985e2f0",
+      "cost_basis_usdc": 4.999999999988347e-05,
+      "shares": 7.462686567150101e-05,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x9b648186678fd48950b6d480123174c89089fccec0cd44c6301fa344332eb790",
+      "cost_basis_usdc": 1.1999999999678934e-05,
+      "shares": 2.608695652117632e-05,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x7ecda1719af74b21f235792df37f45dfea3f171171bdee3c653a691bbd6e51c5",
+      "cost_basis_usdc": 1.9999999999686935e-05,
+      "shares": 5.555555555503133e-05,
+      "side": "UP"
+    },
+    {
+      "condition_id": "0x5aff02bad0eadf8dc9c693444154adb187163fa9ba2e29058fc804f3e7456332",
+      "cost_basis_usdc": 3.8000000000093515e-05,
+      "shares": 5.13513513513697e-05,
+      "side": "DOWN"
+    }
+  ]
+}
