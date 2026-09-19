@@ -116,9 +116,9 @@ strategy:
   calibration_market_logit_intercept: 0.0
   calibration_market_logit_slope: 1.0
   calibration_raw_model_weight: 0.0
-  # Real entries are enabled by explicit operator confirmation. The
-  # reconciliation, exits, risk, and FOK checks remain active.
-  real_entries_enabled: true
+  # Keep real entries disabled while execution-aware validation runs.
+  # Reconciliation, exits, risk, and FOK checks remain active.
+  real_entries_enabled: false
   # X can only confirm a near-threshold BTC model edge; it cannot create
   # an entry by itself.
   x_confirming_edge_pct: 0.015
