@@ -236,6 +236,7 @@ def _configured_strategy():
 
 def test_configured_entry_thresholds_preserve_other_limits():
     cfg = _configured_strategy()
+    assert cfg.telegram.heartbeat_interval_sec == 86400
     assert cfg.strategy.entry_edge_pct == pytest.approx(0.05)
     assert cfg.strategy.x_min_base_entry_edge_pct == pytest.approx(0.07)
     assert cfg.x.min_base_entry_edge_pct == cfg.strategy.x_min_base_entry_edge_pct
@@ -243,7 +244,7 @@ def test_configured_entry_thresholds_preserve_other_limits():
     assert cfg.risk.max_total_exposure_usdc == 4
     assert cfg.risk.daily_loss_limit_usdc == 20
     assert cfg.risk.max_open_positions == 1
-    assert cfg.strategy.real_entries_enabled is False
+    assert cfg.strategy.real_entries_enabled is True
     assert cfg.strategy.exit_edge_pct == 0.015
     assert cfg.strategy.take_profit_pct == pytest.approx(0.20)
     assert cfg.strategy.take_profit_cost_buffer_pct == pytest.approx(0.02)

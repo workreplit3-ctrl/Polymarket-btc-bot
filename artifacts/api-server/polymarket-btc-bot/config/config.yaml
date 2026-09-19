@@ -12,7 +12,7 @@ telegram:
   # Use /whoami in any chat with @userinfobot to find yours.
   allowed_user_ids: [123456789]
   # Send a heartbeat every N seconds even if nothing happened (0 = off)
-  heartbeat_interval_sec: 1800
+  heartbeat_interval_sec: 86400
 
 # --- Mode -----------------------------------------------------------
 # "paper"  : simulate trades, no real orders, no wallet needed
@@ -116,9 +116,9 @@ strategy:
   calibration_market_logit_intercept: 0.0
   calibration_market_logit_slope: 1.0
   calibration_raw_model_weight: 0.0
-  # Keep real entries disabled while execution-aware validation runs.
+  # Real entries are enabled after the execution-aware validation review.
   # Reconciliation, exits, risk, and FOK checks remain active.
-  real_entries_enabled: false
+  real_entries_enabled: true
   # X can only confirm a near-threshold BTC model edge; it cannot create
   # an entry by itself.
   x_confirming_edge_pct: 0.015
