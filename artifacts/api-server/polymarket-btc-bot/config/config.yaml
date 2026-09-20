@@ -130,7 +130,8 @@ strategy:
 # follower checks at runtime. Remove an account here if it should not affect
 # the paper signal. X never overrides the BTC model or opens real trades.
 x:
-  enabled: true
+  # Temporarily disabled to prevent paid X connector usage.
+  enabled: false
   usernames:
     - CoinDesk
     - BitcoinMagazine
